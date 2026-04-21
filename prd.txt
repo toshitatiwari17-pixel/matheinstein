@@ -1,0 +1,25 @@
+MathEinstein - Formula Training System PRD (MVP v1)
+Objective: Build a highly interactive system that trains students to choose the correct abacus trick
+under pressure using guided → recall → mixed learning loops.
+Core USP:
+1. Formula (Trick) Selection Training
+2. Guided → Recall → Mixed Practice Loop
+3. Visual + Audio Integrated Learning
+4. Instant Visual Error Feedback
+5. ‘Why this trick?’ explanation layer
+Target Users:
+Students (6–12 years), Abacus beginners (Level 1–2), Tutors
+Core Features (MVP):
+1. Interactive Abacus (single format)
+2. Question Engine (formula-based)
+3. Audio Dictation (0.75x–2x presets)
+4. Practice Modes: Guided, Recall, Mixed
+5. ‘Show Trick’ Button
+6. One-line ‘Why this trick’ explanation
+7. Timer + basic performance feedback
+User Flow:
+Question → Attempt → (Optional Show Trick) → Solve → Visual Correction → Next
+What is NOT included in MVP:
+No advanced bead AI, no full teacher sync, no multi-level expansion, no worksheet imports
+Future Scope:
+Teacher dashboard, adaptive difficulty, gamification, advanced error detection

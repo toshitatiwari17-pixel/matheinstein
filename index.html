@@ -1,0 +1,1018 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>MathEinstein Classroom MVP</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { --rod:#8b5a2b; --frame:#6b3f1d; }
+    body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .bead { transition:.2s; cursor:pointer; user-select:none; }
+    .bead.flash { animation: flash .55s ease 2; }
+    @keyframes flash { 0%,100%{ box-shadow:0 0 0 0 rgba(250,204,21,0);} 50%{ box-shadow:0 0 0 6px rgba(250,204,21,.65);} }
+    .rod-wrap { position:relative; }
+    .rod { position:absolute; left:50%; top:0; bottom:0; width:4px; background:var(--rod); transform:translateX(-50%); border-radius:2px; }
+    .divider { height:6px; background:linear-gradient(#8b5a2b,#5a3414); }
+    .ghost { opacity:.35; outline:2px dashed #f59e0b; }
+    .shake { animation:shake .35s; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+    .tab-on { background:#4f46e5; color:white; border-color:#4f46e5; }
+    .mini .bead { width:28px !important; height:14px !important; }
+    .mini .rod-wrap { height:190px !important; }
+    .mini .heaven-zone { height:50px !important; }
+    .mini .earth-zone { height:120px !important; }
+    #confetti { position:fixed; inset:0; pointer-events:none; z-index:40; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-amber-50 text-slate-800">
+<canvas id="confetti"></canvas>
+
+<header class="max-w-7xl mx-auto px-4 pt-5 pb-2 flex flex-wrap items-center justify-between gap-3">
+  <div class="flex items-center gap-3">
+    <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white grid place-items-center font-black">ME</div>
+    <div>
+      <h1 class="text-xl md:text-2xl font-black">MathEinstein</h1>
+      <p class="text-xs text-slate-500">Live Classroom MVP</p>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-2 text-xs md:text-sm flex-wrap">
+    <span class="px-2 py-1 rounded border bg-white">🏅 L<span id="hudLvl">1</span></span>
+    <span class="px-2 py-1 rounded border bg-white">⭐ <span id="hudXp">0</span></span>
+    <span class="px-2 py-1 rounded border bg-white">🔥 <span id="hudStreak">0</span></span>
+    <span class="px-2 py-1 rounded border bg-white">🪙 <span id="hudCoins">0</span></span>
+  </div>
+
+  <div class="flex items-center gap-2 flex-wrap text-xs md:text-sm">
+    <label class="text-slate-500">Role</label>
+    <select id="role" class="px-2 py-1 border rounded">
+      <option value="solo">Solo</option>
+      <option value="teacher">Teacher</option>
+      <option value="student">Student</option>
+    </select>
+
+    <label class="text-slate-500">Room</label>
+    <input id="room" value="CLASS-1" class="px-2 py-1 border rounded w-24 uppercase"/>
+
+    <label class="text-slate-500">Name</label>
+    <input id="student" placeholder="Name" class="px-2 py-1 border rounded w-24"/>
+
+    <label class="text-slate-500">Level</label>
+    <select id="level" class="px-2 py-1 border rounded">
+      <option value="1">L1</option>
+      <option value="2">L2</option>
+      <option value="3">L3</option>
+    </select>
+
+    <label class="text-slate-500">Server</label>
+    <input id="serverUrl" placeholder="ws://localhost:8787" class="px-2 py-1 border rounded w-40"/>
+
+    <span id="liveDot" class="w-2 h-2 rounded-full bg-slate-300" title="offline"></span>
+  </div>
+</header>
+
+<nav class="max-w-7xl mx-auto px-4 pb-3 flex gap-2">
+  <button data-tab="practice" class="tab-btn px-3 py-1.5 rounded border text-sm font-semibold">🎯 Practice</button>
+  <button data-tab="dictation" class="tab-btn px-3 py-1.5 rounded border text-sm font-semibold">🎧 Dictation</button>
+  <button data-tab="dashboard" class="tab-btn px-3 py-1.5 rounded border text-sm font-semibold">📊 Dashboard</button>
+</nav>
+
+<main id="tab-practice" class="tab-view max-w-7xl mx-auto px-4 pb-10 grid md:grid-cols-5 gap-4">
+  <section class="md:col-span-2 space-y-4">
+    <div class="bg-white rounded-2xl border p-4 shadow-sm">
+      <div class="flex items-center justify-between">
+        <h2 class="font-bold">Session</h2>
+        <span class="text-xs text-slate-500">Q <span id="qIdx">0</span>/<span id="qTotal">10</span></span>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-sm mt-2">
+        <button data-mode="guided" class="mode-btn px-2 py-2 border rounded font-semibold">Guided</button>
+        <button data-mode="recall" class="mode-btn px-2 py-2 border rounded font-semibold">Recall</button>
+        <button data-mode="mixed" class="mode-btn px-2 py-2 border rounded font-semibold">Mixed</button>
+      </div>
+      <div class="mt-2 flex items-center gap-2 flex-wrap text-xs">
+        <label class="text-slate-500">Qs</label>
+        <input id="sessLen" type="number" min="1" max="50" value="10" class="w-14 border rounded px-2 py-1"/>
+        <label class="flex items-center gap-1"><input id="chainMode" type="checkbox"/> Chain</label>
+        <label class="flex items-center gap-1">Steps <input id="chainSteps" type="number" min="2" max="8" value="3" class="w-12 border rounded px-2 py-1"/></label>
+        <button id="startSess" class="ml-auto px-3 py-1.5 rounded bg-indigo-600 text-white font-semibold">Start</button>
+      </div>
+      <p id="modeHelp" class="text-xs text-slate-500 mt-2"></p>
+    </div>
+
+    <div class="bg-white rounded-2xl border p-4 shadow-sm">
+      <h2 class="font-bold mb-2">Question</h2>
+      <div class="flex items-baseline gap-2">
+        <div id="question" class="text-3xl md:text-4xl font-black text-indigo-700">—</div>
+        <button id="speakBtn" class="ml-auto px-2 py-1.5 rounded bg-indigo-600 text-white text-sm">🔊</button>
+      </div>
+      <div id="chainPreview" class="text-xs text-slate-500 mt-1"></div>
+      <div class="mt-2 flex items-center gap-2 text-xs">
+        <label>Speed</label>
+        <select id="speed" class="border rounded px-2 py-1">
+          <option value="0.75">0.75x</option><option value="1" selected>1x</option>
+          <option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2x</option>
+        </select>
+        <span class="ml-auto">⏱ <span id="timer">0.0s</span> · ✅ <span id="score">0</span> · ❌ <span id="miss">0</span></span>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border p-4 shadow-sm">
+      <h2 class="font-bold mb-2">Pick trick <span id="trickMeta" class="text-xs text-slate-400"></span></h2>
+      <div id="choices" class="grid gap-2"></div>
+      <div class="mt-2 flex gap-2">
+        <button id="showTrickBtn" class="flex-1 px-3 py-2 rounded bg-amber-400 font-semibold text-sm">💡 Show</button>
+        <button id="checkBtn" class="flex-1 px-3 py-2 rounded bg-emerald-500 text-white font-semibold text-sm">Check</button>
+      </div>
+      <div id="why" class="mt-2 text-sm italic text-slate-600 min-h-[1.25rem]"></div>
+    </div>
+  </section>
+
+  <section class="md:col-span-3 space-y-4">
+    <div class="bg-white rounded-2xl border p-4 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-bold">My Abacus <span id="myRoleBadge" class="text-xs text-slate-500"></span></h2>
+        <div class="text-sm">Value: <span id="abacusVal" class="font-black text-indigo-700">0</span> <button id="resetAb" class="ml-2 px-2 py-1 border rounded text-xs">Reset</button></div>
+      </div>
+      <div id="abacus" class="rounded-xl p-4 bg-amber-100 border-4 border-[color:var(--frame)] shadow-inner"></div>
+    </div>
+
+    <div id="teacherPanel" class="hidden bg-white rounded-2xl border p-4 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-bold">Teacher Panel</h2>
+        <div class="flex gap-2">
+          <button id="claimClass" class="px-2 py-1 border rounded text-xs font-semibold">Claim Class</button>
+          <button id="pushAll" class="px-2 py-1 bg-indigo-600 text-white rounded text-xs font-semibold">Push Question to All</button>
+          <button id="resetAll" class="px-2 py-1 border rounded text-xs font-semibold">Reset All</button>
+        </div>
+      </div>
+      <div id="studentGrid" class="grid md:grid-cols-2 gap-3"></div>
+      <p id="studentEmpty" class="text-xs text-slate-400">No students connected.</p>
+    </div>
+
+    <div id="studentPeerPanel" class="hidden bg-white rounded-2xl border p-4 shadow-sm">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-bold">Teacher Live Mirror</h2>
+        <button id="unlockTeacher" class="px-2 py-1 border rounded text-xs font-semibold">Unlock Teacher</button>
+      </div>
+      <div id="teacherMirror" class="rounded-xl p-3 bg-emerald-50 border-2 border-emerald-600/30"></div>
+      <p class="text-xs text-slate-500 mt-2">You receive pushed questions and hints from the teacher.</p>
+    </div>
+  </section>
+</main>
+
+<main id="tab-dictation" class="tab-view hidden max-w-7xl mx-auto px-4 pb-10 grid md:grid-cols-5 gap-4">
+  <section class="md:col-span-2 space-y-4">
+    <div class="bg-white rounded-2xl border p-4 shadow-sm">
+      <h2 class="font-bold mb-2">Dictation Drill</h2>
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <label>Steps <input id="dSteps" type="number" min="2" max="10" value="4" class="w-full border rounded px-2 py-1 mt-1"/></label>
+        <label>Gap(s) <input id="dGap" type="number" min="0.5" max="5" step="0.25" value="1.5" class="w-full border rounded px-2 py-1 mt-1"/></label>
+        <label>Speed
+          <select id="dSpeed" class="w-full border rounded px-2 py-1 mt-1"><option value="0.75">0.75x</option><option value="1" selected>1x</option><option value="1.5">1.5x</option><option value="2">2x</option></select>
+        </label>
+        <label class="flex items-center gap-2 mt-5"><input id="dShow" type="checkbox"/> Show text</label>
+      </div>
+      <div class="mt-3 flex gap-2">
+        <button id="dStart" class="flex-1 px-3 py-2 rounded bg-indigo-600 text-white font-semibold text-sm">Start</button>
+        <button id="dReplay" class="px-3 py-2 rounded border font-semibold text-sm">Replay</button>
+      </div>
+    </div>
+    <div class="bg-white rounded-2xl border p-4 shadow-sm">
+      <div id="dStep" class="text-5xl text-center text-indigo-700 font-black min-h-[4rem]">—</div>
+      <div id="dProgress" class="text-xs text-center text-slate-500 mt-1">—</div>
+      <div class="mt-2 flex gap-2">
+        <button id="dCheck" class="flex-1 px-3 py-2 rounded bg-emerald-500 text-white font-semibold text-sm">Check</button>
+        <button id="dReveal" class="px-3 py-2 rounded bg-amber-400 font-semibold text-sm">Reveal</button>
+      </div>
+      <div id="dWhy" class="mt-2 text-sm italic text-slate-600 min-h-[1.25rem]"></div>
+    </div>
+  </section>
+  <section class="md:col-span-3">
+    <div class="bg-white rounded-2xl border p-4 shadow-sm">
+      <div class="flex justify-between mb-2"><h2 class="font-bold">Abacus</h2><div class="text-sm">Value: <span id="abacus2Val" class="font-black text-indigo-700">0</span> <button id="resetAb2" class="ml-2 px-2 py-1 border rounded text-xs">Reset</button></div></div>
+      <div id="abacus2" class="rounded-xl p-4 bg-amber-100 border-4 border-[color:var(--frame)] shadow-inner"></div>
+    </div>
+  </section>
+</main>
+
+<main id="tab-dashboard" class="tab-view hidden max-w-7xl mx-auto px-4 pb-10 space-y-4">
+  <div class="bg-white rounded-2xl border p-4 shadow-sm">
+    <div class="flex justify-between items-center"><h2 class="font-bold">Dashboard</h2><div class="flex gap-2"><button id="exportData" class="px-3 py-1.5 border rounded text-sm font-semibold">Export</button><button id="clearData" class="px-3 py-1.5 border rounded text-red-600 text-sm font-semibold">Clear</button></div></div>
+    <div id="summary" class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4"></div>
+  </div>
+  <div class="bg-white rounded-2xl border p-4 shadow-sm"><h3 class="font-bold mb-2">Trick Accuracy</h3><div id="trickStats" class="space-y-2 text-sm"></div></div>
+  <div class="bg-white rounded-2xl border p-4 shadow-sm"><h3 class="font-bold mb-2">Recent Sessions</h3><div class="overflow-auto"><table class="w-full text-sm"><thead class="text-left text-slate-500 border-b"><tr><th class="py-2">When</th><th>Student</th><th>Type</th><th>Level</th><th>Mode</th><th>Score</th><th>Acc</th><th>Avg</th></tr></thead><tbody id="sessTbody"></tbody></table></div></div>
+</main>
+
+<div id="reportModal" class="hidden fixed inset-0 z-30 grid place-items-center bg-slate-900/55 p-4">
+  <div class="bg-white rounded-2xl p-5 w-full max-w-md">
+    <h3 class="font-black text-xl">Session complete</h3>
+    <p id="reportSub" class="text-sm text-slate-500 mt-1"></p>
+    <div id="reportBody" class="text-sm mt-3 space-y-2"></div>
+    <div class="mt-4 flex gap-2"><button id="reportClose" class="flex-1 px-3 py-2 rounded bg-indigo-600 text-white font-semibold">Done</button><button id="reportAgain" class="flex-1 px-3 py-2 rounded border font-semibold">Again</button></div>
+  </div>
+</div>
+
+<footer class="text-center text-xs text-slate-400 pb-6">MathEinstein MVP v3</footer>
+
+<script>
+const RODS = 4;
+const LS_SESS = 'mathEinsteinSessions.v1';
+const LS_GAME = 'mathEinsteinGame.v1';
+const LS_PREF = 'mathEinsteinPref.v1';
+
+const state = {
+  level: 1,
+  mode: 'guided',
+  beads: blankBeads(),
+  dBeads: blankBeads(),
+  target: null,
+  tricks: [],
+  correctTrick: null,
+  selectedIdx: null,
+  start: null,
+  locked: false,
+  ghost: null,
+  sess: null,
+  chain: null,
+  d: { seq: [], expected: 0, running: false },
+  controlStudent: null
+};
+function blankBeads(){ return Array.from({length:RODS}, ()=>({h:0,e:0})); }
+function valueOf(beads){ let v=0; for(let r=0;r<RODS;r++) v += (beads[r].h*5 + beads[r].e) * Math.pow(10, RODS-1-r); return v; }
+function cloneBeads(b){ return b.map(x=>({h:x.h,e:x.e})); }
+function setValue(beads, v){
+  const s = String(Math.max(0,v)).padStart(RODS,'0').slice(-RODS);
+  for (let i=0;i<RODS;i++){ const d=+s[i]; beads[i]={ h:d>=5?1:0, e:d>=5?d-5:d }; }
+}
+
+function buildAbacus(rootId, mini=false){
+  const root = document.getElementById(rootId); if (!root) return;
+  root.innerHTML = '';
+  if (mini) root.classList.add('mini');
+  const grid = document.createElement('div');
+  grid.className = 'grid gap-2';
+  grid.style.gridTemplateColumns = `repeat(${RODS}, minmax(0,1fr))`;
+  root.appendChild(grid);
+  for (let r=0;r<RODS;r++){
+    const col = document.createElement('div');
+    col.className = 'rod-wrap flex flex-col items-center select-none';
+    col.style.height = mini ? '190px' : '300px';
+    col.innerHTML = `
+      <div class="rod"></div>
+      <div class="heaven-zone relative w-full flex flex-col items-center justify-start z-10" style="height:${mini?50:80}px" data-rod="${r}"></div>
+      <div class="divider w-full my-1 z-20 rounded"></div>
+      <div class="earth-zone relative w-full flex flex-col items-center justify-end z-10 gap-1" style="height:${mini?120:200}px" data-rod="${r}"></div>
+      <div class="text-[9px] text-slate-500 mt-1">10<sup>${RODS-1-r}</sup></div>
+    `;
+    grid.appendChild(col);
+  }
+}
+function ghostCheck(ghost, r, kind, i, beads){
+  if (!ghost || ghost.rod !== r) return false;
+  if (kind==='h') return ghost.heavenTarget !== null && ghost.heavenTarget !== beads[r].h;
+  if (ghost.earthTarget == null) return false;
+  const cur=beads[r].e, tgt=ghost.earthTarget;
+  if (tgt>cur) return i>=cur && i<tgt;
+  if (tgt<cur) return i>=tgt && i<cur;
+  return false;
+}
+function makeBead(kind, rod, idx, rootId){
+  const b = document.createElement('div');
+  b.className = 'bead rounded-full border';
+  b.style.width = rootId.startsWith('peerAb_') ? '28px' : '46px';
+  b.style.height = rootId.startsWith('peerAb_') ? '14px' : '22px';
+  if (kind==='heaven'){ b.style.background='radial-gradient(#374151,#111827)'; b.style.borderColor='#0b1020'; }
+  else { b.style.background='radial-gradient(#fbbf24,#b45309)'; b.style.borderColor='#7c2d12'; }
+
+  if (rootId === 'abacus' || rootId === 'abacus2') b.addEventListener('click', ()=>onBeadClick(rootId, kind, rod, idx));
+  else if (rootId.startsWith('peerAb_')) {
+    const sid = rootId.slice(7);
+    b.addEventListener('click', ()=>Sync.onPeerBeadClick(sid, kind, rod, idx));
+    b.style.cursor = Sync.canControl(sid) ? 'pointer' : 'default';
+  }
+  return b;
+}
+function renderBeads(rootId, beads, ghost, valueId){
+  const root = document.getElementById(rootId); if (!root) return;
+  for (let r=0;r<RODS;r++){
+    const hz = root.querySelector(`.heaven-zone[data-rod="${r}"]`);
+    const ez = root.querySelector(`.earth-zone[data-rod="${r}"]`);
+    if (!hz || !ez) continue;
+    hz.innerHTML=''; ez.innerHTML='';
+    const {h,e} = beads[r];
+    const hb = makeBead('heaven', r, 0, rootId);
+    hb.style.marginTop = h ? (rootId.startsWith('peerAb_') ? '30px' : '55px') : '0px';
+    if (ghostCheck(ghost,r,'h',0,beads)) hb.classList.add('ghost');
+    hz.appendChild(hb);
+    for (let i=0;i<4;i++){
+      const eb = makeBead('earth', r, i, rootId);
+      if (ghostCheck(ghost,r,'e',i,beads)) eb.classList.add('ghost');
+      ez.appendChild(eb);
+    }
+    if (e===0){ const s=document.createElement('div'); s.style.height='14px'; ez.insertBefore(s, ez.firstChild); }
+    else if (e<4){ const s=document.createElement('div'); s.style.height='14px'; ez.insertBefore(s, ez.children[e]); }
+  }
+  const ve = document.getElementById(valueId || (rootId+'Val')); if (ve) ve.textContent = valueOf(beads);
+}
+function onBeadClick(rootId, kind, rod, idx){
+  const p = rootId === 'abacus';
+  if (p && state.locked) return;
+  const beads = p ? state.beads : state.dBeads;
+  const rd = beads[rod];
+  if (kind==='heaven') rd.h = rd.h ? 0 : 1;
+  else rd.e = idx < rd.e ? idx : idx+1;
+  if (p){ state.ghost=null; renderBeads('abacus', state.beads, null, 'abacusVal'); Sync.broadcastBeads(); }
+  else renderBeads('abacus2', state.dBeads, null, 'abacus2Val');
+}
+
+function classify(op,e,h,b){ return op==='+' ? classifyAdd(e,h,b) : classifySub(e,h,b); }
+function classifyAdd(e,h,b){
+  const cur=h*5+e, sum=cur+b;
+  if (sum>9){ const c=10-b; return {type:'big',label:`Big friend: +${b} = +10 − ${c}`,why:`Sum > 9 → carry 10, subtract ${c}.`}; }
+  if (b<=4){
+    if (4-e>=b) return {type:'direct',label:`Direct: +${b}`,why:`Enough earth beads for direct add.`};
+    const c=5-b; return {type:'small',label:`Small friend: +${b} = +5 − ${c}`,why:`Not enough earth beads → 5's complement.`};
+  }
+  if (b===5 && h===0) return {type:'direct',label:'Direct: push heaven (+5)',why:'Heaven bead free.'};
+  return {type:'direct',label:`Direct: +5 then +${b-5}`,why:'Compound direct move.'};
+}
+function classifySub(e,h,b){
+  const cur=h*5+e;
+  if (cur-b>=0){
+    if (b<=4){
+      if (e>=b) return {type:'direct',label:`Direct: −${b}`,why:'Enough active earth beads.'};
+      const c=5-b; return {type:'small',label:`Small friend: −${b} = −5 + ${c}`,why:'Borrow from heaven.'};
+    }
+    if (b===5 && h===1) return {type:'direct',label:'Direct: release heaven (−5)',why:'Heaven active.'};
+    return {type:'direct',label:`Direct: −5 then −${b-5}`,why:'Compound direct move.'};
+  }
+  const c=10-b; return {type:'big',label:`Big friend: −${b} = −10 + ${c}`,why:'Need borrow from next rod.'};
+}
+function fakeTrick(t,op,b){
+  if (t==='direct') return {type:t,label:op==='+'?`Direct: +${b}`:`Direct: −${b}`,why:''};
+  if (t==='small'){ const c=Math.max(1,5-(b<=4?b:4)); return {type:t,label:op==='+'?`Small: +${b} = +5 − ${c}`:`Small: −${b} = −5 + ${c}`,why:''}; }
+  const c=10-b; return {type:t,label:op==='+'?`Big: +${b} = +10 − ${c}`:`Big: −${b} = −10 + ${c}`,why:''};
+}
+function prettyType(t){ return t==='direct'?'Direct':t==='small'?'Small friend':'Big friend'; }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+
+function genStart(level){ return level===3 ? Math.floor(Math.random()*90) : Math.floor(Math.random()*10); }
+function genB(level, op, start){
+  for(let k=0;k<30;k++){
+    const b = 1 + Math.floor(Math.random()*9);
+    const after = op==='+' ? start+b : start-b;
+    if (after<0 || after>9999) continue;
+    if (level===1 && after>9) continue;
+    return b;
+  }
+  return 1;
+}
+
+function newQuestion(){
+  if (Sync.role()==='student') return;
+  const chainOn = document.getElementById('chainMode').checked;
+  if (chainOn) return newChainQuestion();
+  state.chain = null;
+  document.getElementById('chainPreview').textContent = '';
+
+  const start = genStart(state.level);
+  setValue(state.beads, start);
+  const op = Math.random()<0.5?'+':'−';
+  const b = genB(state.level, op, start);
+  const after = op==='+' ? start+b : start-b;
+  if (after<0) return newQuestion();
+
+  const rod = RODS-1;
+  const pre = cloneBeads(state.beads);
+  state.target = { a:start, op, b, after };
+  state.correctTrick = classify(op, pre[rod].e, pre[rod].h, b);
+  const others = ['direct','small','big'].filter(x=>x!==state.correctTrick.type);
+  state.tricks = shuffle([state.correctTrick, fakeTrick(others[0],op,b), fakeTrick(others[1],op,b)]);
+
+  showQuestionUi(`${start} ${op} ${b} = ?`, false);
+  Sync.broadcastQuestion();
+}
+
+function newChainQuestion(){
+  const steps = Math.max(2, Math.min(8, +document.getElementById('chainSteps').value||3));
+  let total = genStart(Math.min(2, state.level));
+  const startVal = total;
+  const seq = [];
+  for (let i=0;i<steps;i++){
+    const op = total===0 ? '+' : (Math.random()<0.5?'+':'−');
+    const b = genB(state.level, op, total);
+    const from = total;
+    total = op==='+' ? total+b : total-b;
+    if (total<0){ total=from+b; seq.push({op:'+',b,from,to:total}); }
+    else seq.push({op,b,from,to:total});
+  }
+  setValue(state.beads, startVal);
+  const last = seq[seq.length-1];
+  const pre = blankBeads(); setValue(pre,last.from);
+  const ct = classify(last.op, pre[RODS-1].e, pre[RODS-1].h, last.b);
+  state.chain = { startVal, seq, finalTotal: total };
+  state.target = { a:startVal, op:last.op, b:last.b, after:total, chain:true };
+  state.correctTrick = ct;
+  const others = ['direct','small','big'].filter(x=>x!==ct.type);
+  state.tricks = shuffle([ct, fakeTrick(others[0],last.op,last.b), fakeTrick(others[1],last.op,last.b)]);
+
+  const masked = `${startVal} ` + seq.map(s=>`${s.op==='+'?'+':'−'}${s.b}`).join(' ');
+  showQuestionUi(`${steps}-step chain = ?`, true);
+  document.getElementById('chainPreview').textContent = `Audio chain: ${masked}`;
+  speakChain();
+  Sync.broadcastQuestion();
+}
+
+function showQuestionUi(qText, isChain){
+  document.getElementById('question').textContent = qText;
+  document.getElementById('trickMeta').textContent = isChain ? '(for last step)' : '';
+  document.getElementById('why').textContent='';
+  state.selectedIdx=null; state.locked=false; state.ghost=null; state.start=performance.now();
+  renderChoices();
+  renderBeads('abacus', state.beads, null, 'abacusVal');
+  if (state.sess){ document.getElementById('qIdx').textContent=state.sess.idx+1; document.getElementById('qTotal').textContent=state.sess.len; }
+  Sync.broadcastBeads();
+}
+
+function renderChoices(){
+  const wrap=document.getElementById('choices'); wrap.innerHTML='';
+  const guided = state.mode==='guided' || (state.mode==='mixed' && (state.sess?.mixedFlags?.[state.sess.idx] ?? Math.random()<.5));
+  state.tricks.forEach((t,i)=>{
+    const b=document.createElement('button');
+    b.className='text-left px-3 py-2 border rounded bg-white hover:bg-indigo-50 text-sm font-medium';
+    b.textContent=t.label;
+    if (guided && t===state.correctTrick) b.classList.add('ring-2','ring-emerald-400','bg-emerald-50');
+    b.addEventListener('click',()=>{
+      if (state.locked) return;
+      state.selectedIdx=i;
+      wrap.querySelectorAll('button').forEach(x=>x.classList.remove('ring-2','ring-indigo-400'));
+      b.classList.add('ring-2','ring-indigo-400');
+    });
+    wrap.appendChild(b);
+  });
+}
+
+async function speakChain(){
+  if (!state.chain) return;
+  const rate=+document.getElementById('speed').value;
+  await speak(String(state.chain.startVal), rate);
+  for (const s of state.chain.seq){ await speak(`${s.op==='+'?'plus':'minus'} ${s.b}`, rate); await delay(550); }
+}
+function speakQuestion(){
+  if (state.chain) return speakChain();
+  if (!state.target) return;
+  const rate=+document.getElementById('speed').value;
+  speak(`${state.target.a} ${state.target.op==='+'?'plus':'minus'} ${state.target.b}`, rate);
+}
+function speak(text, rate){ return new Promise(res=>{ const u=new SpeechSynthesisUtterance(text); u.rate=rate; u.onend=res; u.onerror=res; speechSynthesis.cancel(); speechSynthesis.speak(u); }); }
+function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+function checkAnswer(){
+  if (!state.target || state.locked) return;
+  const chosen = state.selectedIdx!=null ? state.tricks[state.selectedIdx] : null;
+  const trickOk = chosen && chosen.type===state.correctTrick.type;
+  const abOk = valueOf(state.beads)===state.target.after;
+  const elapsed=(performance.now()-state.start)/1000;
+
+  if (state.sess){
+    const pt = state.sess.perTrick[state.correctTrick.type] ||= {total:0, correct:0};
+    pt.total++; if (trickOk && abOk) pt.correct++;
+    state.sess.times.push(elapsed);
+  }
+
+  if (trickOk && abOk){
+    if (state.sess){ state.sess.score++; document.getElementById('score').textContent=state.sess.score; }
+    document.getElementById('why').innerHTML=`✅ <b>Correct!</b> ${state.correctTrick.why}`;
+    flashAll('#abacus .bead');
+    Game.correct(state.chain?25:10);
+    Sync.sendResult(true);
+    state.locked=true;
+    setTimeout(nextOrEnd,900);
+  } else {
+    if (state.sess){ state.sess.miss++; document.getElementById('miss').textContent=state.sess.miss; }
+    const reasons=[];
+    if (!chosen) reasons.push('pick a trick'); else if (!trickOk) reasons.push(`trick should be <b>${prettyType(state.correctTrick.type)}</b>`);
+    if (!abOk) reasons.push(`abacus should show <b>${state.target.after}</b> (you have ${valueOf(state.beads)})`);
+    document.getElementById('why').innerHTML=`❌ ${reasons.join(' · ')}. ${state.correctTrick.why}`;
+    shake('#abacus');
+    Game.wrong();
+    Sync.sendResult(false);
+  }
+}
+function showTrick(){
+  if (!state.target) return;
+  const u = state.target.after%10;
+  state.ghost={ rod:RODS-1, heavenTarget:u>=5?1:0, earthTarget:u>=5?u-5:u };
+  renderBeads('abacus', state.beads, state.ghost, 'abacusVal');
+  document.getElementById('why').textContent=`💡 ${state.correctTrick.why}`;
+  Sync.sendShowTrick(state.controlStudent || undefined);
+  setTimeout(()=>{ state.ghost=null; renderBeads('abacus', state.beads, null, 'abacusVal'); },1400);
+}
+function nextOrEnd(){
+  if (!state.sess) return newQuestion();
+  state.sess.idx++;
+  if (state.sess.idx>=state.sess.len) return endSession();
+  newQuestion();
+}
+
+function setMode(m){
+  state.mode=m;
+  document.querySelectorAll('.mode-btn').forEach(b=>{
+    const on=b.dataset.mode===m;
+    b.classList.toggle('bg-indigo-600',on); b.classList.toggle('text-white',on); b.classList.toggle('border-indigo-600',on);
+  });
+  document.getElementById('modeHelp').textContent={guided:'Correct trick highlighted.', recall:'No hint.', mixed:'Random guided/recall.'}[m];
+  if (state.target) renderChoices();
+}
+function startSession(){
+  const len=Math.max(1,Math.min(50,+document.getElementById('sessLen').value||10));
+  state.sess={
+    type:document.getElementById('chainMode').checked?'chain':'practice',
+    len, idx:0, score:0, miss:0, times:[], perTrick:{}, mode:state.mode, level:state.level,
+    mixedFlags:Array.from({length:len},()=>Math.random()<.5)
+  };
+  document.getElementById('score').textContent=0; document.getElementById('miss').textContent=0;
+  newQuestion();
+}
+function endSession(){
+  const s=state.sess; if (!s) return;
+  const total=s.score+s.miss||1;
+  const acc=Math.round(100*s.score/total);
+  const avg=s.times.length ? s.times.reduce((a,b)=>a+b,0)/s.times.length : 0;
+  const rec={ when:Date.now(), student:getName(), type:s.type, level:s.level, mode:s.mode, score:s.score, total, accuracy:acc, avg, perTrick:s.perTrick };
+  saveSession(rec); renderReport(rec); state.sess=null; Game.sessionBonus(rec);
+}
+
+function dStart(){
+  const steps=Math.max(2,Math.min(10,+document.getElementById('dSteps').value||4));
+  const gap=Math.max(0.5,Math.min(5,+document.getElementById('dGap').value||1.5));
+  const rate=+document.getElementById('dSpeed').value;
+  const show=document.getElementById('dShow').checked;
+  let total=0; const seq=[];
+  for(let i=0;i<steps;i++){
+    const op=total===0?'+':(Math.random()<.5?'+':'−');
+    const b=state.level===3 ? 1+Math.floor(Math.random()*99) : 1+Math.floor(Math.random()*9);
+    const after=op==='+'?total+b:total-b;
+    if (after<0 || (state.level<=2 && after>9)){ i--; continue; }
+    total=after; seq.push({op,b});
+  }
+  state.d={seq, expected:total, running:true};
+  setValue(state.dBeads,0); renderBeads('abacus2', state.dBeads, null, 'abacus2Val');
+  playDictation(seq,gap,rate,show);
+}
+async function playDictation(seq,gap,rate,show){
+  document.getElementById('dWhy').textContent='';
+  for(let i=0;i<seq.length;i++){
+    const s=seq[i];
+    document.getElementById('dStep').textContent=show?`${s.op==='+'?'+':'−'} ${s.b}`:'🔊';
+    document.getElementById('dProgress').textContent=`${i+1}/${seq.length}`;
+    await speak(`${s.op==='+'?'plus':'minus'} ${s.b}`, rate);
+    await delay(gap*1000);
+  }
+  document.getElementById('dStep').textContent='= ?';
+}
+function dCheck(){
+  if (!state.d.seq.length) return;
+  const got=valueOf(state.dBeads), ok=got===state.d.expected;
+  document.getElementById('dWhy').innerHTML = ok ? `✅ Correct! ${state.d.expected}` : `❌ Got ${got}, expected ${state.d.expected}`;
+  if (ok){ Game.correct(20); flashAll('#abacus2 .bead'); } else { Game.wrong(); shake('#abacus2'); }
+  saveSession({ when:Date.now(), student:getName(), type:'dictation', level:state.level, mode:'-', score:ok?1:0, total:1, accuracy:ok?100:0, avg:0, perTrick:{} });
+}
+function dReveal(){ if (!state.d.seq.length) return; document.getElementById('dWhy').innerHTML=`Sequence: <b>${state.d.seq.map(s=>`${s.op==='+'?'+':'−'}${s.b}`).join(' ')}</b> → <b>${state.d.expected}</b>`; }
+
+function saveSession(rec){
+  const all=JSON.parse(localStorage.getItem(LS_SESS)||'[]');
+  all.unshift(rec); localStorage.setItem(LS_SESS, JSON.stringify(all.slice(0,200)));
+  renderDashboard();
+}
+function renderReport(rec){
+  document.getElementById('reportSub').textContent=`${rec.student} · L${rec.level} · ${rec.mode} · ${rec.type}`;
+  const pt=Object.entries(rec.perTrick||{}).map(([k,v])=>{ const p=v.total?Math.round(100*v.correct/v.total):0; return `<li><b>${prettyType(k)}</b>: ${v.correct}/${v.total} (${p}%)</li>`; }).join('') || '<li>No trick data</li>';
+  document.getElementById('reportBody').innerHTML=`
+    <div class="grid grid-cols-3 gap-2 text-center">
+      <div class="bg-emerald-50 rounded p-2"><div class="font-black text-emerald-600 text-2xl">${rec.score}/${rec.total}</div><div class="text-xs text-slate-500">score</div></div>
+      <div class="bg-indigo-50 rounded p-2"><div class="font-black text-indigo-600 text-2xl">${rec.accuracy}%</div><div class="text-xs text-slate-500">accuracy</div></div>
+      <div class="bg-amber-50 rounded p-2"><div class="font-black text-amber-600 text-2xl">${rec.avg.toFixed(1)}s</div><div class="text-xs text-slate-500">avg</div></div>
+    </div>
+    <div><b>By trick</b><ul class="list-disc ml-5">${pt}</ul></div>`;
+  document.getElementById('reportModal').classList.remove('hidden');
+}
+
+function renderDashboard(){
+  const all=JSON.parse(localStorage.getItem(LS_SESS)||'[]');
+  const totalS=all.length, totalQ=all.reduce((a,b)=>a+b.total,0), totalC=all.reduce((a,b)=>a+b.score,0);
+  const acc=totalQ?Math.round(100*totalC/totalQ):0;
+  const avgList=all.filter(x=>x.avg>0).map(x=>x.avg);
+  const avg=avgList.length ? avgList.reduce((a,b)=>a+b,0)/avgList.length : 0;
+  document.getElementById('summary').innerHTML=`
+    ${card('Sessions', totalS)}
+    ${card('Questions', totalQ)}
+    ${card('Accuracy', `${acc}%`)}
+    ${card('Avg time', `${avg.toFixed(1)}s`)}
+  `;
+  const agg={};
+  for(const s of all) for(const [k,v] of Object.entries(s.perTrick||{})){ const a=agg[k] ||= {total:0,correct:0}; a.total+=v.total; a.correct+=v.correct; }
+  const ts=document.getElementById('trickStats');
+  if (!Object.keys(agg).length) ts.innerHTML='<p class="text-slate-400">No practice data yet.</p>';
+  else {
+    const entries=Object.entries(agg).map(([k,v])=>({k,p:v.total?Math.round(100*v.correct/v.total):0,v}));
+    const weak=entries.slice().sort((a,b)=>a.p-b.p)[0]?.k;
+    ts.innerHTML=entries.map(e=>`<div><div class="flex justify-between text-xs"><span><b>${prettyType(e.k)}</b>${weak===e.k?' <span class="text-rose-600">· weakest</span>':''}</span><span>${e.v.correct}/${e.v.total} · ${e.p}%</span></div><div class="h-2 bg-slate-100 rounded mt-1 overflow-hidden"><div class="h-full ${e.p>=80?'bg-emerald-500':e.p>=60?'bg-amber-500':'bg-rose-500'}" style="width:${e.p}%"></div></div></div>`).join('');
+  }
+  document.getElementById('sessTbody').innerHTML = all.slice(0,25).map(s=>`<tr class="border-b"><td class="py-1.5 text-slate-500">${new Date(s.when).toLocaleString()}</td><td>${s.student}</td><td>${s.type}</td><td>L${s.level}</td><td>${s.mode}</td><td>${s.score}/${s.total}</td><td>${s.accuracy}%</td><td>${(s.avg||0).toFixed(1)}s</td></tr>`).join('') || '<tr><td colspan="8" class="py-3 text-center text-slate-400">No sessions yet.</td></tr>';
+}
+function card(label,val){ return `<div class="bg-slate-50 rounded-xl p-3 text-center"><div class="text-2xl font-black text-indigo-700">${val}</div><div class="text-xs text-slate-500">${label}</div></div>`; }
+
+const Game = (()=>{
+  let g = { xp:0, coins:0, streak:0, level:1 };
+  function load(){ g = JSON.parse(localStorage.getItem(LS_GAME)||'{"xp":0,"coins":0,"streak":0,"level":1}'); paint(); }
+  function save(){ localStorage.setItem(LS_GAME, JSON.stringify(g)); paint(); }
+  function paint(){
+    document.getElementById('hudXp').textContent=g.xp;
+    document.getElementById('hudCoins').textContent=g.coins;
+    document.getElementById('hudStreak').textContent=g.streak;
+    document.getElementById('hudLvl').textContent=g.level;
+  }
+  function addXp(n){
+    g.xp += n;
+    const newLevel = Math.floor(g.xp/100)+1;
+    if (newLevel>g.level){ g.level=newLevel; g.coins += 10; confetti(); beep(880,.12); }
+  }
+  function correct(xp){ g.streak++; addXp(xp + Math.min(10, g.streak)); g.coins += 1; beep(660,.08); if (g.streak%5===0){ g.coins+=3; confetti(); } save(); }
+  function wrong(){ g.streak=0; beep(220,.08); save(); }
+  function sessionBonus(rec){ if (rec.accuracy>=80){ g.coins += 5; addXp(15); confetti(); save(); } }
+  return { load, correct, wrong, sessionBonus };
+})();
+
+const Sync = (()=>{
+  const peers = new Map();
+  const me = { id: Math.random().toString(36).slice(2,10), role:'solo', room:'CLASS-1', name:'Anon' };
+  let ws = null;
+  let bc = null;
+  let transport = 'none';
+  let activeTeacherId = null;
+  let classClaimed = false;
+
+  function role(){ return me.role; }
+  function canControl(studentId){ return me.role==='teacher' && state.controlStudent===studentId; }
+  function setDot(s){
+    const el=document.getElementById('liveDot');
+    el.className='w-2 h-2 rounded-full '+(s==='live'?'bg-emerald-500 animate-pulse':s==='searching'?'bg-amber-400':'bg-slate-300');
+    el.title=s;
+  }
+  function closeAll(){ if (ws){ try{ws.close();}catch{} ws=null; } if (bc){ try{bc.close();}catch{} bc=null; } transport='none'; }
+
+  function connect(){
+    closeAll(); peers.clear(); renderPeerPanels();
+    me.role = document.getElementById('role').value;
+    me.room = (document.getElementById('room').value || 'CLASS-1').toUpperCase();
+    me.name = getName();
+    activeTeacherId = null;
+    classClaimed = false;
+    document.getElementById('myRoleBadge').textContent = me.role==='solo' ? '' : `· ${me.role.toUpperCase()} @ ${me.room}`;
+
+    if (me.role==='solo'){ setDot('offline'); return; }
+    setDot('searching');
+    const custom = document.getElementById('serverUrl').value.trim();
+    const defaultWs = (location.protocol==='https:'?'wss://':'ws://') + location.host;
+    const wsUrl = custom || defaultWs;
+
+    try {
+      ws = new WebSocket(wsUrl);
+      ws.onopen = ()=>{ transport='ws'; setDot('live'); send({type:'join', clientId:me.id, role:me.role, room:me.room, name:me.name}); };
+      ws.onmessage = ev => onMessage(JSON.parse(ev.data));
+      ws.onerror = ()=> fallbackBC();
+      ws.onclose = ()=> { if (transport==='ws') setTimeout(fallbackBC, 150); };
+    } catch {
+      fallbackBC();
+    }
+  }
+
+  function fallbackBC(){
+    if (transport==='ws') return;
+    try {
+      bc = new BroadcastChannel('matheinstein-'+me.room);
+      transport='bc'; setDot('live');
+      bc.onmessage = ev => onMessage(ev.data);
+      send({type:'hello'});
+      broadcastBeads();
+    } catch {
+      setDot('offline');
+    }
+  }
+
+  function send(msg){
+    if (me.role==='solo') return;
+    if (transport==='ws' && ws?.readyState===1) ws.send(JSON.stringify(msg));
+    else if (transport==='bc' && bc){ bc.postMessage({...msg, from:me.id, role:me.role, name:me.name}); }
+  }
+
+  function onMessage(m){
+    if (!m) return;
+    const from = m.from;
+
+    if (m.type==='welcome'){
+      me.id = m.clientId || me.id;
+      (m.peers||[]).forEach(p=>upsertPeer(p.clientId, p.role, p.name));
+      send({type:'hello'});
+      broadcastBeads();
+      return;
+    }
+    if (m.type==='peerJoined'){ upsertPeer(m.from, m.role, m.name); return; }
+    if (m.type==='peerLeft'){
+      peers.delete(m.from);
+      if (activeTeacherId === m.from) {
+        activeTeacherId = null;
+        if (me.role === 'student') document.getElementById('why').textContent = 'ℹ Active teacher disconnected. Waiting for next teacher command.';
+      }
+      renderPeerPanels();
+      return;
+    }
+
+    if (from && from===me.id) return;
+    if (m.to && m.to !== me.id) return;
+
+    if (m.type==='hello' || m.type==='ping'){
+      upsertPeer(m.from, m.role, m.name);
+      broadcastBeads();
+      if (me.role==='teacher' && classClaimed) send({type:'claimTeacher', to:m.from});
+      if (me.role==='teacher' && state.target) sendQuestion(m.from);
+      return;
+    }
+
+    if (m.role) upsertPeer(m.from, m.role, m.name);
+
+    if (m.type==='claimTeacher' && me.role==='student'){
+      const sender = peers.get(m.from);
+      if (!sender || sender.role !== 'teacher') return;
+      if (!activeTeacherId || activeTeacherId === m.from){
+        activeTeacherId = m.from;
+        document.getElementById('why').textContent = `🧭 Active teacher set to ${sender.name}.`;
+      } else {
+        document.getElementById('why').textContent = `ℹ ${sender.name} requested class claim. Unlock teacher to switch.`;
+      }
+      renderPeerPanels();
+      return;
+    }
+
+    if (m.type==='releaseTeacher' && me.role==='student'){
+      if (activeTeacherId === m.from){
+        activeTeacherId = null;
+        document.getElementById('why').textContent = 'ℹ Teacher released class control. Waiting for next teacher.';
+        renderPeerPanels();
+      }
+      return;
+    }
+
+    if (me.role === 'student' && ['question','showTrick','remoteMove','resetPeer'].includes(m.type)) {
+      const sender = peers.get(m.from);
+      if (!sender || sender.role !== 'teacher') return;
+      if (!activeTeacherId) {
+        activeTeacherId = m.from;
+        renderPeerPanels();
+      } else if (activeTeacherId !== m.from) {
+        document.getElementById('why').textContent = 'ℹ Ignored command from another teacher. Use Unlock Teacher to switch.';
+        return;
+      }
+    }
+
+    if (m.type==='beads'){
+      const p = peers.get(m.from); if (!p) return;
+      p.beads = cloneBeads(m.beads||blankBeads()); p.lastSeen = Date.now();
+      renderPeerPanels();
+      return;
+    }
+
+    if (m.type==='question' && me.role==='student'){
+      applyRemoteQuestion(m.payload);
+      return;
+    }
+
+    if (m.type==='showTrick' && me.role==='student'){
+      state.ghost = m.ghost;
+      renderBeads('abacus', state.beads, state.ghost, 'abacusVal');
+      document.getElementById('why').textContent = '💡 Teacher hint: ' + (m.why || '');
+      setTimeout(()=>{ state.ghost=null; renderBeads('abacus', state.beads, null, 'abacusVal'); }, 1400);
+      return;
+    }
+
+    if (m.type==='remoteMove' && me.role==='student'){
+      const {kind,rod,idx}=m;
+      const rd = state.beads[rod];
+      if (kind==='heaven') rd.h = rd.h?0:1; else rd.e = idx < rd.e ? idx : idx+1;
+      renderBeads('abacus', state.beads, null, 'abacusVal');
+      broadcastBeads();
+      return;
+    }
+
+    if (m.type==='resetPeer' && me.role==='student'){
+      state.beads = blankBeads(); renderBeads('abacus', state.beads, null, 'abacusVal'); broadcastBeads();
+      return;
+    }
+
+    if (m.type==='result' && me.role==='teacher'){
+      const p=peers.get(m.from); if (!p) return;
+      p.lastResult = m.ok ? '✅' : '❌'; renderPeerPanels();
+      return;
+    }
+  }
+
+  function upsertPeer(id, role, name){
+    if (!id || id===me.id) return;
+    const p = peers.get(id) || { id, role: role||'student', name: name||'Anon', beads: blankBeads(), lastSeen: Date.now(), lastResult: '' };
+    p.role = role || p.role; p.name = name || p.name; p.lastSeen = Date.now();
+    peers.set(id,p);
+    renderPeerPanels();
+  }
+
+  function renderPeerPanels(){
+    const teacher = me.role==='teacher';
+    const student = me.role==='student';
+    document.getElementById('teacherPanel').classList.toggle('hidden', !teacher);
+    document.getElementById('studentPeerPanel').classList.toggle('hidden', !student);
+
+    const grid = document.getElementById('studentGrid');
+    const students = [...peers.values()].filter(p=>p.role==='student');
+    if (state.controlStudent && !students.some(s => s.id === state.controlStudent)) {
+      state.controlStudent = null;
+    }
+    document.getElementById('studentEmpty').classList.toggle('hidden', students.length>0);
+    document.getElementById('pushAll').classList.toggle('hidden', !teacher);
+    document.getElementById('resetAll').classList.toggle('hidden', !teacher);
+    const claimBtn = document.getElementById('claimClass');
+    claimBtn.classList.toggle('hidden', !teacher);
+    claimBtn.textContent = classClaimed ? 'Release Class' : 'Claim Class';
+    claimBtn.classList.toggle('bg-emerald-600', classClaimed);
+    claimBtn.classList.toggle('text-white', classClaimed);
+    const unlockBtn = document.getElementById('unlockTeacher');
+    unlockBtn.classList.toggle('hidden', !student);
+    grid.innerHTML = '';
+
+    students.forEach(s=>{
+      const card = document.createElement('div');
+      card.className = 'border rounded-xl p-2 bg-slate-50';
+      card.innerHTML = `
+        <div class="flex items-center justify-between text-xs mb-1">
+          <div><b>${escapeHtml(s.name)}</b> <span class="text-slate-500">${s.id.slice(0,5)}</span></div>
+          <div>Value: <b>${valueOf(s.beads)}</b> ${s.lastResult||''}</div>
+        </div>
+        <div id="peerAb_${s.id}" class="rounded-lg p-2 bg-emerald-50 border border-emerald-700/30"></div>
+        <div class="mt-2 flex gap-1 text-xs">
+          <button data-act="push" data-id="${s.id}" class="px-2 py-1 rounded bg-indigo-600 text-white font-semibold">Push</button>
+          <button data-act="nudge" data-id="${s.id}" class="px-2 py-1 rounded bg-amber-400 font-semibold">Nudge</button>
+          <button data-act="ctrl" data-id="${s.id}" class="px-2 py-1 rounded border font-semibold">${state.controlStudent===s.id?'Controlling':'Control'}</button>
+          <button data-act="reset" data-id="${s.id}" class="px-2 py-1 rounded border font-semibold">Reset</button>
+        </div>
+      `;
+      grid.appendChild(card);
+      buildAbacus(`peerAb_${s.id}`, true);
+      renderBeads(`peerAb_${s.id}`, s.beads, null);
+    });
+
+    if (student){
+      const teacherPeer = [...peers.values()].find(p=>p.id===activeTeacherId && p.role==='teacher') || [...peers.values()].find(p=>p.role==='teacher');
+      const tm = document.getElementById('teacherMirror');
+      if (!teacherPeer){ tm.innerHTML = '<p class="text-xs text-slate-400">Waiting for teacher...</p>'; }
+      else {
+        const lockTxt = activeTeacherId === teacherPeer.id ? ' (active)' : '';
+        tm.innerHTML = `<p class="text-xs text-slate-500 mb-2">Teacher: <b>${escapeHtml(teacherPeer.name)}</b>${lockTxt}</p><div id="peerAb_${teacherPeer.id}" class="rounded p-2 bg-white border"></div>`;
+        buildAbacus(`peerAb_${teacherPeer.id}`, true);
+        renderBeads(`peerAb_${teacherPeer.id}`, teacherPeer.beads, null);
+      }
+    }
+  }
+
+  function sendQuestion(to){
+    if (!state.target) return;
+    send({ type:'question', to, payload:{ target: state.target, tricks: state.tricks, correctTrick: state.correctTrick, startBeads: cloneBeads(state.beads), level: state.level, chain: state.chain } });
+  }
+  function applyRemoteQuestion(p){
+    state.level = p.level || state.level;
+    document.getElementById('level').value = String(state.level);
+    state.target = p.target;
+    state.tricks = p.tricks || [];
+    state.correctTrick = p.correctTrick;
+    state.chain = p.chain || null;
+    state.beads = cloneBeads(p.startBeads || blankBeads());
+    showQuestionUi(p.chain ? `${p.chain.seq.length}-step chain = ?` : `${p.target.a} ${p.target.op} ${p.target.b} = ?`, !!p.chain);
+    if (p.chain) document.getElementById('chainPreview').textContent = `Audio chain pushed by teacher`;
+    document.getElementById('why').textContent = '📥 New question from teacher';
+    broadcastBeads();
+  }
+
+  function broadcastQuestion(){ if (me.role==='teacher') sendQuestion(undefined); }
+  function broadcastBeads(){ send({type:'beads', beads: cloneBeads(state.beads)}); }
+  function sendShowTrick(to){ if (me.role==='teacher') send({type:'showTrick', to, ghost: state.ghost, why: state.correctTrick?.why }); }
+  function sendResult(ok){ if (me.role==='student') send({type:'result', to: activeTeacherId || undefined, ok}); }
+  function onPeerBeadClick(studentId, kind, rod, idx){ if (!(me.role==='teacher' && state.controlStudent===studentId)) return; send({type:'remoteMove', to:studentId, kind, rod, idx}); }
+  function toggleClassClaim(){
+    if (me.role!=='teacher') return;
+    classClaimed = !classClaimed;
+    send({ type: classClaimed ? 'claimTeacher' : 'releaseTeacher' });
+    renderPeerPanels();
+  }
+  function unlockTeacher(){
+    if (me.role!=='student') return;
+    activeTeacherId = null;
+    document.getElementById('why').textContent = '🔓 Teacher lock cleared. Next teacher command will set active teacher.';
+    renderPeerPanels();
+  }
+
+  return { connect, role, canControl, broadcastQuestion, broadcastBeads, sendShowTrick, sendResult, onPeerBeadClick,
+    sendQuestionTo:(id)=>sendQuestion(id), resetPeer:(id)=>send({type:'resetPeer', to:id}), pushAll:()=>sendQuestion(undefined), resetAll:()=>send({type:'resetPeer'}),
+    setControl:(id)=>{ state.controlStudent = (state.controlStudent===id?null:id); renderPeerPanels(); },
+    forceControl:(id)=>{ state.controlStudent = id; renderPeerPanels(); },
+    nudgePeer:(id)=>{ sendShowTrick(id); },
+    toggleClassClaim, unlockTeacher
+  };
+})();
+
+function flashAll(sel){ document.querySelectorAll(sel).forEach(x=>x.classList.add('flash')); setTimeout(()=>document.querySelectorAll(sel).forEach(x=>x.classList.remove('flash')),650); }
+function shake(sel){ const el=document.querySelector(sel); if(!el) return; el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+function getName(){ return (document.getElementById('student').value || 'Anon').trim() || 'Anon'; }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function confetti(){
+  const c=document.getElementById('confetti'); const ctx=c.getContext('2d');
+  c.width=innerWidth; c.height=innerHeight;
+  const bits=Array.from({length:90},()=>({x:Math.random()*c.width,y:-20-Math.random()*200,vx:-2+Math.random()*4,vy:2+Math.random()*4,s:3+Math.random()*5,a:Math.random()*Math.PI*2,col:`hsl(${Math.random()*360} 90% 60%)`}));
+  let t=0;
+  (function tick(){
+    ctx.clearRect(0,0,c.width,c.height);
+    bits.forEach(b=>{ b.x+=b.vx; b.y+=b.vy; b.a+=.1; ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(b.a); ctx.fillStyle=b.col; ctx.fillRect(-b.s/2,-b.s/2,b.s,b.s); ctx.restore(); });
+    t++; if (t<70) requestAnimationFrame(tick); else ctx.clearRect(0,0,c.width,c.height);
+  })();
+}
+function beep(freq=660,dur=.08){ try { const ac=new (window.AudioContext||window.webkitAudioContext)(); const o=ac.createOscillator(); const g=ac.createGain(); o.frequency.value=freq; o.connect(g); g.connect(ac.destination); g.gain.value=.04; o.start(); o.stop(ac.currentTime+dur); } catch {} }
+
+setInterval(()=>{ if(state.start && !state.locked) document.getElementById('timer').textContent = ((performance.now()-state.start)/1000).toFixed(1)+'s'; },100);
+
+function setTab(t){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('tab-on', b.dataset.tab===t));
+  document.querySelectorAll('.tab-view').forEach(v=>v.classList.add('hidden'));
+  document.getElementById('tab-'+t).classList.remove('hidden');
+  if (t==='dashboard') renderDashboard();
+}
+
+function savePrefs(){
+  localStorage.setItem(LS_PREF, JSON.stringify({ role:document.getElementById('role').value, room:document.getElementById('room').value, name:document.getElementById('student').value, level:document.getElementById('level').value, serverUrl:document.getElementById('serverUrl').value }));
+}
+function loadPrefs(){
+  const p = JSON.parse(localStorage.getItem(LS_PREF)||'{}');
+  if (p.role) document.getElementById('role').value=p.role;
+  if (p.room) document.getElementById('room').value=p.room;
+  if (p.name) document.getElementById('student').value=p.name;
+  if (p.level) document.getElementById('level').value=p.level;
+  if (p.serverUrl) document.getElementById('serverUrl').value=p.serverUrl;
+  state.level = +document.getElementById('level').value;
+}
+
+// wire controls
+for (const b of document.querySelectorAll('.tab-btn')) b.addEventListener('click', ()=>setTab(b.dataset.tab));
+for (const b of document.querySelectorAll('.mode-btn')) b.addEventListener('click', ()=>setMode(b.dataset.mode));
+document.getElementById('level').addEventListener('change', e=>{ state.level=+e.target.value; savePrefs(); });
+for (const id of ['role','room','student','serverUrl']) document.getElementById(id).addEventListener('change', ()=>{ savePrefs(); Sync.connect(); });
+document.getElementById('startSess').addEventListener('click', startSession);
+document.getElementById('speakBtn').addEventListener('click', speakQuestion);
+document.getElementById('checkBtn').addEventListener('click', checkAnswer);
+document.getElementById('showTrickBtn').addEventListener('click', showTrick);
+document.getElementById('resetAb').addEventListener('click', ()=>{ state.beads=blankBeads(); renderBeads('abacus', state.beads, null, 'abacusVal'); Sync.broadcastBeads(); });
+document.getElementById('dStart').addEventListener('click', dStart);
+document.getElementById('dReplay').addEventListener('click', ()=>{ if (state.d.seq.length) playDictation(state.d.seq, +document.getElementById('dGap').value||1.5, +document.getElementById('dSpeed').value||1, document.getElementById('dShow').checked); });
+document.getElementById('dCheck').addEventListener('click', dCheck);
+document.getElementById('dReveal').addEventListener('click', dReveal);
+document.getElementById('resetAb2').addEventListener('click', ()=>{ state.dBeads=blankBeads(); renderBeads('abacus2', state.dBeads, null, 'abacus2Val'); });
+document.getElementById('reportClose').addEventListener('click', ()=>document.getElementById('reportModal').classList.add('hidden'));
+document.getElementById('reportAgain').addEventListener('click', ()=>{ document.getElementById('reportModal').classList.add('hidden'); startSession(); });
+document.getElementById('exportData').addEventListener('click', ()=>{ const blob=new Blob([localStorage.getItem(LS_SESS)||'[]'],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='matheinstein-sessions.json'; a.click(); });
+document.getElementById('clearData').addEventListener('click', ()=>{ if(confirm('Clear all saved sessions?')){ localStorage.removeItem(LS_SESS); renderDashboard(); } });
+document.getElementById('pushAll').addEventListener('click', ()=>{ if(!state.target) newQuestion(); Sync.pushAll(); });
+document.getElementById('resetAll').addEventListener('click', ()=>Sync.resetAll());
+document.getElementById('claimClass').addEventListener('click', ()=>Sync.toggleClassClaim());
+document.getElementById('unlockTeacher').addEventListener('click', ()=>Sync.unlockTeacher());
+document.getElementById('studentGrid').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-act]'); if (!btn) return;
+  const id = btn.dataset.id; const act = btn.dataset.act;
+  if (act==='push'){ if(!state.target) newQuestion(); Sync.sendQuestionTo(id); }
+  else if (act==='nudge'){ if(state.target){ Sync.forceControl(id); Sync.nudgePeer(id); } }
+  else if (act==='ctrl') Sync.setControl(id);
+  else if (act==='reset') Sync.resetPeer(id);
+});
+
+// boot
+buildAbacus('abacus');
+buildAbacus('abacus2');
+renderBeads('abacus', state.beads, null, 'abacusVal');
+renderBeads('abacus2', state.dBeads, null, 'abacus2Val');
+loadPrefs();
+Game.load();
+setTab('practice');
+setMode('guided');
+newQuestion();
+Sync.connect();
+renderDashboard();
+</script>
+</body>
+</html>
