@@ -198,6 +198,15 @@
   <section class="md:col-span-2 space-y-4">
     <div class="bg-white rounded-2xl border p-4 shadow-sm">
       <h2 class="font-bold mb-2">Dictation Drill</h2>
+      <div class="mb-2 flex items-center gap-1 flex-wrap text-xs">
+        <label class="text-slate-500 mr-1">Type</label>
+        <div id="dDigitTypeGroup" class="flex gap-1 flex-wrap">
+          <button data-type="1" class="d-digit-type-btn px-2 py-1 border rounded text-[11px] font-semibold">1-Digit</button>
+          <button data-type="2" class="d-digit-type-btn px-2 py-1 border rounded text-[11px] font-semibold">2-Digit</button>
+          <button data-type="mix12" class="d-digit-type-btn px-2 py-1 border rounded text-[11px] font-semibold">Mix 1+2</button>
+          <button data-type="mix22" class="d-digit-type-btn px-2 py-1 border rounded text-[11px] font-semibold bg-indigo-600 text-white border-indigo-600">Mix 2+2</button>
+        </div>
+      </div>
       <div class="grid grid-cols-2 gap-2 text-xs">
         <label>Questions
           <select id="dCount" class="w-full border rounded px-2 py-1 mt-1">
@@ -279,6 +288,7 @@ const state = {
   sess: null,
   chain: null,
   d: { seq: [], expected: 0, running: false },
+  dDigitType: 'mix22',
   controlStudent: null,
   attempted: false,
   stuckTimer: null,
@@ -397,8 +407,16 @@ function onBeadClick(rootId, kind, rod, idx){
   const rd = beads[rod];
   if (kind==='heaven'){ rd.h = rd.h ? 0 : 1; }
   else {
-    if (rd.e === idx + 1) rd.e = 0;
-    else rd.e = idx + 1;
+    // Group-move logic: active beads are at indices 0 to e-1 (top to bottom)
+    // Clicking any active bead (idx < e) pushes ALL earth beads down (e=0)
+    // Clicking any inactive bead (idx >= e) pushes that bead and all above it up (e = idx+1)
+    if (idx < rd.e) {
+      // Clicked an active bead - drop all earth beads down
+      rd.e = 0;
+    } else {
+      // Clicked an inactive bead - push all beads up through this one
+      rd.e = idx + 1;
+    }
   }
   if (p){
     state.ghost=null; renderBeads('abacus', state.beads, null, 'abacusVal'); Sync.broadcastBeads();
@@ -702,6 +720,14 @@ function endSession(){
   saveSession(rec); renderReport(rec); state.sess=null; Game.sessionBonus(rec);
 }
 
+function dPickNumberForType(){
+  const t = state.dDigitType;
+  if (t==='1') return 1 + Math.floor(Math.random() * 9);
+  if (t==='2') return 10 + Math.floor(Math.random() * 90);
+  if (t==='mix12') return Math.random() < 0.5 ? (1 + Math.floor(Math.random() * 9)) : (10 + Math.floor(Math.random() * 90));
+  // mix22: two 2-digit numbers
+  return 10 + Math.floor(Math.random() * 90);
+}
 function dStart(){
   const qCount = Math.max(1, Math.min(50, +document.getElementById('dCount').value || 10));
   const steps = Math.max(2, Math.min(10, 4)); // Steps per dictation remains internal
@@ -716,9 +742,11 @@ function dStart(){
     const seq = [];
     for (let i = 0; i < steps; i++) {
       const op = total === 0 ? '+' : (Math.random() < 0.5 ? '+' : '−');
-      const b = state.level === 3 ? 1 + Math.floor(Math.random() * 99) : 1 + Math.floor(Math.random() * 9);
+      const b = dPickNumberForType();
       const after = op === '+' ? total + b : total - b;
-      if (after < 0 || (state.level <= 2 && after > 9)) { i--; continue; }
+      // For 1-digit modes, keep intermediate totals single digit
+      const singleDigitMode = state.dDigitType === '1' || (state.digitType === 'mix12' && b < 10 && total < 10);
+      if (after < 0 || (singleDigitMode && after > 9)) { i--; continue; }
       total = after; seq.push({ op, b });
     }
     questions.push({ seq, expected: total });
@@ -1254,6 +1282,16 @@ document.getElementById('stuckWhy').addEventListener('click', ()=>{
   document.getElementById('trickPanel').classList.remove('hidden');
 });
 document.getElementById('stuckSkip').addEventListener('click', skipQuestion);
+
+// Dictation digit type selector
+function setDDigitType(t){
+  state.dDigitType = t;
+  document.querySelectorAll('.d-digit-type-btn').forEach(b=>{
+    const on = b.dataset.type===t;
+    b.classList.toggle('bg-indigo-600', on); b.classList.toggle('text-white', on); b.classList.toggle('border-indigo-600', on);
+  });
+}
+document.querySelectorAll('.d-digit-type-btn').forEach(btn=>btn.addEventListener('click', ()=>setDDigitType(btn.dataset.type)));
 document.getElementById('claimClass').addEventListener('click', ()=>Sync.toggleClassClaim());
 document.getElementById('unlockTeacher').addEventListener('click', ()=>Sync.unlockTeacher());
 document.getElementById('studentGrid').addEventListener('click', (e)=>{
