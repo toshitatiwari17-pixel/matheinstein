@@ -5,9 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>MathEinstein Classroom MVP</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     :root { --rod:#8b5a2b; --frame:#6b3f1d; }
-    body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    body { font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 14px; font-weight: 400; }
+    button { font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600; }
+    #question { font-family: 'Inter', sans-serif; font-size: 48px; font-weight: 700; }
+    .q-header { font-family: 'Inter', sans-serif; font-size: 48px; font-weight: 700; }
     .bead {
       transition: transform .13s ease-out, box-shadow .13s ease-out, filter .13s ease-out;
       cursor:pointer; user-select:none;
@@ -100,7 +106,18 @@
         <input id="sessLen" type="number" min="1" max="50" value="10" class="w-12 border rounded px-2 py-1"/>
         <label class="flex items-center gap-1"><input id="chainMode" type="checkbox"/> Chain</label>
         <input id="chainSteps" type="number" min="2" max="8" value="3" class="w-10 border rounded px-2 py-1" title="Chain steps"/>
-        <button id="startSess" class="ml-auto px-3 py-1 rounded bg-indigo-600 text-white font-semibold">Start</button>
+      </div>
+      <div class="mt-2 flex items-center gap-1 flex-wrap text-xs">
+        <label class="text-slate-500 mr-1">Type</label>
+        <div id="digitTypeGroup" class="flex gap-1 flex-wrap">
+          <button data-type="1" class="digit-type-btn px-2 py-1 border rounded text-[11px] font-semibold">1-Digit</button>
+          <button data-type="2" class="digit-type-btn px-2 py-1 border rounded text-[11px] font-semibold">2-Digit</button>
+          <button data-type="mix12" class="digit-type-btn px-2 py-1 border rounded text-[11px] font-semibold">Mix 1+2</button>
+          <button data-type="mix22" class="digit-type-btn px-2 py-1 border rounded text-[11px] font-semibold">Mix 2+2</button>
+        </div>
+      </div>
+      <div class="mt-2 flex">
+        <button id="startSess" class="ml-auto px-4 py-1.5 rounded bg-indigo-600 text-white font-semibold text-sm">Start</button>
       </div>
       <p id="modeHelp" class="text-[11px] text-slate-400 mt-2"></p>
     </div>
@@ -137,9 +154,19 @@
         <div class="text-sm">Value: <span id="abacusVal" class="font-black text-indigo-700 value-hidden">0</span> <button id="resetAb" class="ml-2 px-2 py-1 border rounded text-xs">Reset</button></div>
       </div>
       <div id="abacus" class="rounded-2xl p-6 bg-gradient-to-b from-amber-50 to-amber-100 border-4 border-[color:var(--frame)] shadow-inner"></div>
-      <div class="mt-4 flex gap-3">
+      <div id="stuckHint" class="hidden mt-3 px-3 py-2 rounded-lg bg-yellow-100 border border-yellow-300 text-sm text-yellow-900 flex items-center gap-2 flex-wrap">
+        <span>Stuck? This uses the <b id="stuckTrick">—</b> trick.</span>
+        <button id="stuckWhy" class="ml-auto px-2 py-1 bg-amber-400 rounded text-xs font-semibold">See Why</button>
+        <button id="stuckSkip" class="px-2 py-1 bg-white border rounded text-xs font-semibold">Skip</button>
+      </div>
+      <div id="actionRow" class="mt-4 flex gap-3">
         <button id="showTrickBtn" class="flex-1 px-4 py-3 rounded-xl bg-amber-400 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed" disabled>💡 Show Trick</button>
         <button id="checkBtn" class="flex-1 px-4 py-3 rounded-xl bg-emerald-500 text-white font-bold text-sm">Check Answer</button>
+      </div>
+      <div id="actionRowPost" class="hidden mt-4 grid grid-cols-3 gap-3">
+        <button id="tryAgainBtn" class="px-3 py-3 rounded-xl bg-rose-500 text-white font-bold text-sm">Try Again</button>
+        <button id="showStepBtn" class="px-3 py-3 rounded-xl bg-amber-400 font-bold text-sm">Show Step</button>
+        <button id="nextQBtn" class="px-3 py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm">Next Question →</button>
       </div>
     </div>
 
@@ -239,6 +266,7 @@ const LS_PREF = 'mathEinsteinPref.v1';
 const state = {
   level: 1,
   mode: 'guided',
+  digitType: 'mix22',
   beads: blankBeads(),
   dBeads: blankBeads(),
   target: null,
@@ -251,8 +279,22 @@ const state = {
   sess: null,
   chain: null,
   d: { seq: [], expected: 0, running: false },
-  controlStudent: null
+  controlStudent: null,
+  attempted: false,
+  stuckTimer: null,
+  lastBeadMove: 0
 };
+function beadClickSound(){
+  try {
+    const ac = beadClickSound._ac || (beadClickSound._ac = new (window.AudioContext||window.webkitAudioContext)());
+    const o = ac.createOscillator(); const g = ac.createGain();
+    o.type='triangle'; o.frequency.value = 520 + Math.random()*120;
+    g.gain.value = 0.04;
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.08);
+    o.connect(g); g.connect(ac.destination);
+    o.start(); o.stop(ac.currentTime + 0.09);
+  } catch {}
+}
 function blankBeads(){ return Array.from({length:RODS}, ()=>({h:0,e:0})); }
 function valueOf(beads){ let v=0; for(let r=0;r<RODS;r++) v += (beads[r].h*5 + beads[r].e) * Math.pow(10, RODS-1-r); return v; }
 function cloneBeads(b){ return b.map(x=>({h:x.h,e:x.e})); }
@@ -306,7 +348,7 @@ function makeBead(kind, rod, idx, rootId){
     b.style.borderColor='#78350f';
   }
 
-  if (rootId === 'abacus' || rootId === 'abacus2') b.addEventListener('click', ()=>{ b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); onBeadClick(rootId, kind, rod, idx); });
+  if (rootId === 'abacus' || rootId === 'abacus2') b.addEventListener('click', ()=>{ b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); beadClickSound(); onBeadClick(rootId, kind, rod, idx); });
   else if (rootId.startsWith('peerAb_')) {
     const sid = rootId.slice(7);
     b.addEventListener('click', ()=>Sync.onPeerBeadClick(sid, kind, rod, idx));
@@ -322,17 +364,29 @@ function renderBeads(rootId, beads, ghost, valueId){
     if (!hz || !ez) continue;
     hz.innerHTML=''; ez.innerHTML='';
     const {h,e} = beads[r];
+
+    // HEAVEN: inactive = top of zone, active = bottom of zone (touching beam)
     const hb = makeBead('heaven', r, 0, rootId);
-    hb.style.marginTop = h ? (rootId.startsWith('peerAb_') ? '30px' : '75px') : '0px';
+    hb.style.marginTop = '0px';
     if (ghostCheck(ghost,r,'h',0,beads)) hb.classList.add('ghost');
-    hz.appendChild(hb);
-    for (let i=0;i<4;i++){
+    const hSpacer = document.createElement('div'); hSpacer.style.flex = '1 1 auto';
+    if (h) { hz.appendChild(hSpacer); hz.appendChild(hb); }
+    else    { hz.appendChild(hb); hz.appendChild(hSpacer); }
+
+    // EARTH: active beads at top (touching beam, 0px gap), inactive at bottom of rod
+    // DOM order: [active beads...] [flex spacer] [inactive beads...]
+    for (let i=0;i<e;i++){
       const eb = makeBead('earth', r, i, rootId);
       if (ghostCheck(ghost,r,'e',i,beads)) eb.classList.add('ghost');
       ez.appendChild(eb);
     }
-    if (e===0){ const s=document.createElement('div'); s.style.height = rootId.startsWith('peerAb_') ? '14px' : '18px'; ez.insertBefore(s, ez.firstChild); }
-    else if (e<4){ const s=document.createElement('div'); s.style.height = rootId.startsWith('peerAb_') ? '14px' : '18px'; ez.insertBefore(s, ez.children[e]); }
+    const eSpacer = document.createElement('div'); eSpacer.style.flex = '1 1 auto'; eSpacer.style.minHeight = '0';
+    ez.appendChild(eSpacer);
+    for (let i=e;i<4;i++){
+      const eb = makeBead('earth', r, i, rootId);
+      if (ghostCheck(ghost,r,'e',i,beads)) eb.classList.add('ghost');
+      ez.appendChild(eb);
+    }
   }
   const ve = document.getElementById(valueId || (rootId+'Val')); if (ve) ve.textContent = valueOf(beads);
 }
@@ -343,12 +397,15 @@ function onBeadClick(rootId, kind, rod, idx){
   const rd = beads[rod];
   if (kind==='heaven'){ rd.h = rd.h ? 0 : 1; }
   else {
-    // Earth bead logic: clicking bead at idx sets count to idx+1 (move all beads 0..idx to beam)
-    // Clicking same position again resets all beads down
     if (rd.e === idx + 1) rd.e = 0;
     else rd.e = idx + 1;
   }
-  if (p){ state.ghost=null; renderBeads('abacus', state.beads, null, 'abacusVal'); Sync.broadcastBeads(); }
+  if (p){
+    state.ghost=null; renderBeads('abacus', state.beads, null, 'abacusVal'); Sync.broadcastBeads();
+    // Reset stuck timer on any bead movement
+    if (state.target && !state.locked) startStuckTimer();
+    document.getElementById('stuckHint').classList.add('hidden');
+  }
   else renderBeads('abacus2', state.dBeads, null, 'abacus2Val');
 }
 
@@ -383,16 +440,35 @@ function fakeTrick(t,op,b){
 function prettyType(t){ return t==='direct'?'Direct':t==='small'?'Small friend':'Big friend'; }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
 
-function genStart(level){ return level===3 ? Math.floor(Math.random()*90) : Math.floor(Math.random()*10); }
-function genB(level, op, start){
-  for(let k=0;k<30;k++){
-    const b = 1 + Math.floor(Math.random()*9);
+function digitRange(kind){
+  // Returns [min,max] for a number of given kind: '1' or '2'
+  return kind==='2' ? [10, 99] : [0, 9];
+}
+function pickDigitKinds(type){
+  // Returns [startKind, operandKind]
+  if (type==='1') return ['1','1'];
+  if (type==='2') return ['2','2'];
+  if (type==='mix22') return ['2','2'];
+  if (type==='mix12') return Math.random()<0.5 ? ['1','2'] : ['2','1'];
+  return ['1','1'];
+}
+function genStart(level, digitType){
+  const type = digitType || state.digitType;
+  const kinds = pickDigitKinds(type);
+  const [min,max] = digitRange(kinds[0]);
+  return min + Math.floor(Math.random()*(max-min+1));
+}
+function genB(level, op, start, digitType){
+  const type = digitType || state.digitType;
+  const kinds = pickDigitKinds(type);
+  const [min,max] = digitRange(kinds[1]);
+  for(let k=0;k<50;k++){
+    const b = Math.max(1, min) + Math.floor(Math.random()*(max - Math.max(1,min) + 1));
     const after = op==='+' ? start+b : start-b;
     if (after<0 || after>9999) continue;
-    if (level===1 && after>9) continue;
     return b;
   }
-  return 1;
+  return Math.max(1, min);
 }
 
 function newQuestion(){
@@ -460,7 +536,9 @@ function showQuestionUi(qText, isChain){
   document.getElementById('abacusVal').classList.add('value-hidden');
   document.getElementById('trickPanel').classList.add('hidden');
   const st = document.getElementById('showTrickBtn'); if (st) st.disabled = true;
+  resetActionRow();
   if (state.sess){ document.getElementById('qIdx').textContent=state.sess.idx+1; document.getElementById('qTotal').textContent=state.sess.len; }
+  startStuckTimer();
   Sync.broadcastBeads();
 }
 
@@ -503,6 +581,34 @@ function revealAttempt(){
   document.getElementById('trickPanel').classList.remove('hidden');
   const st = document.getElementById('showTrickBtn'); if (st) st.disabled = false;
 }
+function showPostActions(){
+  document.getElementById('actionRow').classList.add('hidden');
+  document.getElementById('actionRowPost').classList.remove('hidden');
+}
+function resetActionRow(){
+  document.getElementById('actionRow').classList.remove('hidden');
+  document.getElementById('actionRowPost').classList.add('hidden');
+  document.getElementById('stuckHint').classList.add('hidden');
+}
+function startStuckTimer(){
+  clearStuckTimer();
+  state.lastBeadMove = performance.now();
+  state.stuckTimer = setTimeout(()=>{
+    if (!state.target || state.locked) return;
+    const trickName = state.correctTrick ? prettyType(state.correctTrick.type) : 'formula';
+    document.getElementById('stuckTrick').textContent = trickName;
+    document.getElementById('stuckHint').classList.remove('hidden');
+  }, 15000);
+}
+function clearStuckTimer(){ if (state.stuckTimer){ clearTimeout(state.stuckTimer); state.stuckTimer=null; } }
+function skipQuestion(){
+  if (state.sess){ state.sess.miss++; document.getElementById('miss').textContent=state.sess.miss; }
+  clearStuckTimer();
+  state.locked = true;
+  setValue(state.beads, 0);
+  resetActionRow();
+  nextOrEnd();
+}
 function checkAnswer(){
   if (!state.target || state.locked) return;
   revealAttempt();
@@ -518,26 +624,20 @@ function checkAnswer(){
     state.sess.times.push(elapsed);
   }
 
+  clearStuckTimer();
   if (trickOk && abOk){
-    // CORRECT - show success, update score, but DON'T auto-advance
+    // CORRECT
     if (state.sess){ state.sess.score++; document.getElementById('score').textContent=state.sess.score; }
     document.getElementById('why').innerHTML=`✅ <b>Correct!</b> ${state.correctTrick.why}`;
     flashAll('#abacus .bead');
     Game.correct(state.chain?25:10);
     Sync.sendResult(true);
-    state.locked=true; // Lock until Next Question
-    // Change Check Answer button to Next Question
-    const checkBtn = document.getElementById('checkBtn');
-    checkBtn.textContent = 'Next Question →';
-    checkBtn.onclick = () => {
-      // Reset for next question
-      checkBtn.textContent = 'Check Answer';
-      checkBtn.onclick = checkAnswer;
-      setValue(state.beads, 0); // Reset abacus
-      nextOrEnd();
-    };
+    state.locked=true;
+    showPostActions();
+    // Hide Try Again on correct
+    document.getElementById('tryAgainBtn').classList.add('hidden');
   } else {
-    // WRONG - don't allow progression
+    // WRONG - allow retry OR skip via Next Question
     if (state.sess){ state.sess.miss++; document.getElementById('miss').textContent=state.sess.miss; }
     const reasons=[];
     if (!chosen) reasons.push('pick a trick'); else if (!trickOk) reasons.push(`trick should be <b>${prettyType(state.correctTrick.type)}</b>`);
@@ -546,8 +646,9 @@ function checkAnswer(){
     shake('#abacus');
     Game.wrong();
     Sync.sendResult(false);
-    // Keep locked=false so user can keep trying
     state.locked = false;
+    showPostActions();
+    document.getElementById('tryAgainBtn').classList.remove('hidden');
   }
 }
 function showTrick(){
@@ -1117,6 +1218,42 @@ document.getElementById('clearData').addEventListener('click', ()=>{ if(confirm(
 document.getElementById('pushAll').addEventListener('click', ()=>{ if(!state.target) newQuestion(); Sync.pushAll(); });
 document.getElementById('resetAll').addEventListener('click', ()=>Sync.resetAll());
 document.getElementById('settingsToggle').addEventListener('click', ()=>document.getElementById('settingsBar').classList.toggle('hidden'));
+
+// Digit type selector
+function setDigitType(t){
+  state.digitType = t;
+  document.querySelectorAll('.digit-type-btn').forEach(b=>{
+    const on = b.dataset.type===t;
+    b.classList.toggle('bg-indigo-600', on); b.classList.toggle('text-white', on); b.classList.toggle('border-indigo-600', on);
+  });
+  // Default level to 3 for 2-digit modes, level 1/2 for 1-digit
+  if (t==='2' || t==='mix22' || t==='mix12') { state.level = 3; document.getElementById('level').value='3'; }
+}
+document.querySelectorAll('.digit-type-btn').forEach(btn=>btn.addEventListener('click', ()=>setDigitType(btn.dataset.type)));
+
+// Post-answer action buttons
+document.getElementById('tryAgainBtn').addEventListener('click', ()=>{
+  resetActionRow(); state.locked=false; document.getElementById('why').textContent='';
+  setValue(state.beads, state.target?.a ?? 0); renderBeads('abacus', state.beads, null, 'abacusVal');
+  startStuckTimer();
+});
+document.getElementById('showStepBtn').addEventListener('click', ()=>{
+  if (!state.attempted) state.attempted = true;
+  showTrick();
+});
+document.getElementById('nextQBtn').addEventListener('click', ()=>{
+  clearStuckTimer();
+  state.locked = true;
+  setValue(state.beads, 0);
+  resetActionRow();
+  nextOrEnd();
+});
+document.getElementById('stuckWhy').addEventListener('click', ()=>{
+  document.getElementById('why').innerHTML = `💡 ${state.correctTrick?.why || ''}`;
+  state.attempted = true;
+  document.getElementById('trickPanel').classList.remove('hidden');
+});
+document.getElementById('stuckSkip').addEventListener('click', skipQuestion);
 document.getElementById('claimClass').addEventListener('click', ()=>Sync.toggleClassClaim());
 document.getElementById('unlockTeacher').addEventListener('click', ()=>Sync.unlockTeacher());
 document.getElementById('studentGrid').addEventListener('click', (e)=>{
