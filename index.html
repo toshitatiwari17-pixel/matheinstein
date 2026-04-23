@@ -63,9 +63,25 @@
     .mini .bead { width:28px !important; height:14px !important; box-shadow: 0 2px 3px rgba(0,0,0,.35), inset 0 1px 2px rgba(255,255,255,.5); }
     .mini .rod-wrap { height:190px !important; }
     .mini .heaven-zone { height:50px !important; }
-    .mini .earth-zone { height:120px !important; }
+        .mini .earth-zone { height:120px !important; }
     #confetti { position:fixed; inset:0; pointer-events:none; z-index:40; }
     .value-hidden { visibility:hidden; }
+    
+    /* Abacus Rod Position Dots */
+    .abacus-dot {
+      position: absolute;
+      bottom: -18px; /* sits cleanly on the bottom border frame */
+      left: 50%;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      background-color: #8B4513;
+      z-index: 30;
+      pointer-events: none;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.4), 0 1px 1px rgba(255,255,255,0.2);
+    }
+    .dot-normal { width: 6px; height: 6px; }
+    .dot-large { width: 8px; height: 8px; bottom: -19px; } /* slight bottom adj for larger radius */
+    .dot-gold { width: 6px; height: 6px; background-color: #FFD700; box-shadow: 0 0 6px 2px rgba(255,215,0,0.6), inset 0 1px 2px rgba(255,255,255,0.6); }
   </style>
 </head>
 <body class="min-h-screen text-slate-800">
@@ -94,6 +110,25 @@
 <div id="settingsBar" class="hidden max-w-7xl mx-auto px-4 pb-2">
   <div class="flex items-center gap-2 flex-wrap text-xs md:text-sm glass-panel border-white/50 rounded-2xl px-3 py-2">
     <span class="hidden"><span id="hudLvl">1</span><span id="hudXp">0</span><span id="hudStreak">0</span><span id="hudCoins">0</span></span>
+    <label class="text-slate-500" title="Heaven Beads">H-Bds</label>
+    <select id="hCount" class="px-2 py-1 border rounded w-12 glass-panel">
+      <option value="1" selected>1</option>
+      <option value="2">2</option>
+    </select>
+    <label class="text-slate-500" title="Earth Beads">E-Bds</label>
+    <select id="eCount" class="px-2 py-1 border rounded w-12 glass-panel">
+      <option value="4" selected>4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+    </select>
+    <label class="text-slate-500">Rods</label>
+    <select id="rodCount" class="px-2 py-1 border rounded w-16 glass-panel">
+      <option value="7">7</option>
+      <option value="11">11</option>
+      <option value="13" selected>13</option>
+      <option value="15">15</option>
+      <option value="17">17</option>
+    </select>
     <label class="text-slate-500">Role</label>
     <select id="role" class="px-2 py-1 border rounded">
       <option value="solo">Solo</option>
@@ -294,7 +329,9 @@
 <footer class="text-center text-xs text-slate-400 pb-6">MathEinstein MVP v3</footer>
 
 <script>
-const RODS = 4;
+let RODS = 13;
+let H_BEADS = 1;
+let E_BEADS = 4;
 const LS_SESS = 'mathEinsteinSessions.v1';
 const LS_GAME = 'mathEinsteinGame.v1';
 const LS_PREF = 'mathEinsteinPref.v1';
@@ -403,15 +440,23 @@ function renderBeads(rootId, beads, ghost, valueId){
     const {h,e} = beads[r];
 
     // HEAVEN: inactive = top of zone, active = bottom of zone (touching beam)
-    const hb = makeBead('heaven', r, 0, rootId);
-    hb.style.marginTop = '0px';
-    if (ghostCheck(ghost,r,'h',0,beads)) hb.classList.add('ghost');
+    for (let i=0; i < H_BEADS - h; i++) {
+      const hb = makeBead('heaven', r, i, rootId);
+      hb.style.marginTop = '0px';
+      if (ghostCheck(ghost,r,'h',i,beads)) hb.classList.add('ghost');
+      hz.appendChild(hb);
+    }
     const hSpacer = document.createElement('div'); hSpacer.style.flex = '1 1 auto';
-    if (h) { hz.appendChild(hSpacer); hz.appendChild(hb); }
-    else    { hz.appendChild(hb); hz.appendChild(hSpacer); }
+    hz.appendChild(hSpacer);
+    for (let i=0; i < h; i++) {
+      const idx = H_BEADS - h + i;
+      const hb = makeBead('heaven', r, idx, rootId);
+      hb.style.marginTop = '0px';
+      if (ghostCheck(ghost,r,'h',idx,beads)) hb.classList.add('ghost');
+      hz.appendChild(hb);
+    }
 
     // EARTH: active beads at top (touching beam, 0px gap), inactive at bottom of rod
-    // DOM order: [active beads...] [flex spacer] [inactive beads...]
     for (let i=0;i<e;i++){
       const eb = makeBead('earth', r, i, rootId);
       if (ghostCheck(ghost,r,'e',i,beads)) eb.classList.add('ghost');
@@ -419,7 +464,7 @@ function renderBeads(rootId, beads, ghost, valueId){
     }
     const eSpacer = document.createElement('div'); eSpacer.style.flex = '1 1 auto'; eSpacer.style.minHeight = '0';
     ez.appendChild(eSpacer);
-    for (let i=e;i<4;i++){
+    for (let i=e;i<E_BEADS;i++){
       const eb = makeBead('earth', r, i, rootId);
       if (ghostCheck(ghost,r,'e',i,beads)) eb.classList.add('ghost');
       ez.appendChild(eb);
@@ -432,7 +477,10 @@ function onBeadClick(rootId, kind, rod, idx){
   if (p && state.locked) return;
   const beads = p ? state.beads : state.dBeads;
   const rd = beads[rod];
-  if (kind==='heaven'){ rd.h = rd.h ? 0 : 1; }
+  if (kind==='heaven'){ 
+    if (idx < H_BEADS - rd.h) rd.h = H_BEADS - idx;
+    else rd.h = H_BEADS - 1 - idx;
+  }
   else {
     // Group-move logic: active beads are at indices 0 to e-1 (top to bottom)
     // Clicking any active bead (idx < e) pushes it and any active beads below it down
@@ -1239,7 +1287,7 @@ function setTab(t){
 }
 
 function savePrefs(){
-  localStorage.setItem(LS_PREF, JSON.stringify({ role:document.getElementById('role').value, room:document.getElementById('room').value, name:document.getElementById('student').value, level:document.getElementById('level').value, serverUrl:document.getElementById('serverUrl').value }));
+  localStorage.setItem(LS_PREF, JSON.stringify({ role:document.getElementById('role').value, room:document.getElementById('room').value, name:document.getElementById('student').value, level:document.getElementById('level').value, serverUrl:document.getElementById('serverUrl').value, rods:+document.getElementById('rodCount').value, hBeads:+document.getElementById('hCount').value, eBeads:+document.getElementById('eCount').value }));
 }
 function loadPrefs(){
   const p = JSON.parse(localStorage.getItem(LS_PREF)||'{}');
@@ -1248,6 +1296,9 @@ function loadPrefs(){
   if (p.name) document.getElementById('student').value=p.name;
   if (p.level) document.getElementById('level').value=p.level;
   if (p.serverUrl) document.getElementById('serverUrl').value=p.serverUrl;
+  if (p.rods) { RODS = p.rods; document.getElementById('rodCount').value=p.rods; }
+  if (p.hBeads) { H_BEADS = p.hBeads; document.getElementById('hCount').value=p.hBeads; }
+  if (p.eBeads) { E_BEADS = p.eBeads; document.getElementById('eCount').value=p.eBeads; }
   state.level = +document.getElementById('level').value;
 }
 
@@ -1256,6 +1307,20 @@ for (const b of document.querySelectorAll('.tab-btn')) b.addEventListener('click
 for (const b of document.querySelectorAll('.mode-btn')) b.addEventListener('click', ()=>setMode(b.dataset.mode));
 document.getElementById('level').addEventListener('change', e=>{ state.level=+e.target.value; savePrefs(); });
 for (const id of ['role','room','student','serverUrl']) document.getElementById(id).addEventListener('change', ()=>{ savePrefs(); Sync.connect(); });
+for (const id of ['rodCount', 'hCount', 'eCount']) document.getElementById(id).addEventListener('change', e=>{
+  if(id==='rodCount') RODS = +e.target.value;
+  else if(id==='hCount') H_BEADS = +e.target.value;
+  else E_BEADS = +e.target.value;
+  savePrefs();
+  state.beads=blankBeads(); state.dBeads=blankBeads();
+  buildAbacus('abacus'); buildAbacus('abacus2');
+  renderBeads('abacus', state.beads, null, 'abacusVal');
+  renderBeads('abacus2', state.dBeads, null, 'abacus2Val');
+  if(state.target) {
+    document.getElementById('abacusVal').classList.add('value-hidden');
+  }
+  Sync.broadcastBeads();
+});
 document.getElementById('startSess').addEventListener('click', startSession);
 document.getElementById('speakBtn').addEventListener('click', speakQuestion);
 document.getElementById('checkBtn').addEventListener('click', checkAnswer);
@@ -1345,4 +1410,5 @@ renderDashboard();
 </script>
 </body>
 </html>
+
 
