@@ -8,69 +8,73 @@
   <style>
     :root { --rod:#8b5a2b; --frame:#6b3f1d; }
     body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-    .bead { transition:.2s; cursor:pointer; user-select:none; }
+    .bead {
+      transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+      cursor:pointer; user-select:none;
+      box-shadow: 0 2px 4px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.35), inset 0 -2px 3px rgba(0,0,0,.2);
+    }
+    .bead:hover { filter: brightness(1.08); box-shadow: 0 3px 6px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.4), inset 0 -2px 3px rgba(0,0,0,.2); }
+    .bead:active { transform: scale(.94); box-shadow: 0 0 0 3px rgba(99,102,241,.35), inset 0 1px 0 rgba(255,255,255,.3); }
+    .bead.pulse { animation: pulse .25s ease; }
+    @keyframes pulse { 0%{ box-shadow: 0 0 0 0 rgba(99,102,241,.5);} 100%{ box-shadow: 0 0 0 10px rgba(99,102,241,0);} }
     .bead.flash { animation: flash .55s ease 2; }
     @keyframes flash { 0%,100%{ box-shadow:0 0 0 0 rgba(250,204,21,0);} 50%{ box-shadow:0 0 0 6px rgba(250,204,21,.65);} }
     .rod-wrap { position:relative; }
-    .rod { position:absolute; left:50%; top:0; bottom:0; width:4px; background:var(--rod); transform:translateX(-50%); border-radius:2px; }
-    .divider { height:6px; background:linear-gradient(#8b5a2b,#5a3414); }
+    .rod { position:absolute; left:50%; top:0; bottom:0; width:4px; background:var(--rod); transform:translateX(-50%); border-radius:2px; box-shadow: inset 0 0 2px rgba(0,0,0,.4); }
+    .divider { height:7px; background:linear-gradient(#8b5a2b,#5a3414); box-shadow: 0 1px 3px rgba(0,0,0,.3); }
     .ghost { opacity:.35; outline:2px dashed #f59e0b; }
     .shake { animation:shake .35s; }
     @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
     .tab-on { background:#4f46e5; color:white; border-color:#4f46e5; }
-    .mini .bead { width:28px !important; height:14px !important; }
+    .mini .bead { width:28px !important; height:14px !important; box-shadow: 0 1px 2px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.3); }
     .mini .rod-wrap { height:190px !important; }
     .mini .heaven-zone { height:50px !important; }
     .mini .earth-zone { height:120px !important; }
     #confetti { position:fixed; inset:0; pointer-events:none; z-index:40; }
+    .value-hidden { visibility:hidden; }
   </style>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-amber-50 text-slate-800">
 <canvas id="confetti"></canvas>
 
-<header class="max-w-7xl mx-auto px-4 pt-5 pb-2 flex flex-wrap items-center justify-between gap-3">
+<header class="max-w-7xl mx-auto px-4 pt-5 pb-2 flex items-center justify-between gap-3">
   <div class="flex items-center gap-3">
     <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white grid place-items-center font-black">ME</div>
     <div>
       <h1 class="text-xl md:text-2xl font-black">MathEinstein</h1>
-      <p class="text-xs text-slate-500">Live Classroom MVP</p>
+      <p class="text-xs text-slate-500">Focused practice</p>
     </div>
   </div>
 
-  <div class="flex items-center gap-2 text-xs md:text-sm flex-wrap">
-    <span class="px-2 py-1 rounded border bg-white">🏅 L<span id="hudLvl">1</span></span>
-    <span class="px-2 py-1 rounded border bg-white">⭐ <span id="hudXp">0</span></span>
-    <span class="px-2 py-1 rounded border bg-white">🔥 <span id="hudStreak">0</span></span>
-    <span class="px-2 py-1 rounded border bg-white">🪙 <span id="hudCoins">0</span></span>
+  <div class="flex items-center gap-2 text-xs md:text-sm">
+    <label class="text-slate-500">Level</label>
+    <select id="level" class="px-2 py-1 border rounded bg-white">
+      <option value="1">L1</option>
+      <option value="2">L2</option>
+      <option value="3">L3</option>
+    </select>
+    <button id="settingsToggle" class="ml-1 px-2 py-1 border rounded bg-white" title="Settings">⚙</button>
   </div>
+</header>
 
-  <div class="flex items-center gap-2 flex-wrap text-xs md:text-sm">
+<div id="settingsBar" class="hidden max-w-7xl mx-auto px-4 pb-2">
+  <div class="flex items-center gap-2 flex-wrap text-xs md:text-sm bg-white border rounded-xl px-3 py-2">
+    <span class="hidden"><span id="hudLvl">1</span><span id="hudXp">0</span><span id="hudStreak">0</span><span id="hudCoins">0</span></span>
     <label class="text-slate-500">Role</label>
     <select id="role" class="px-2 py-1 border rounded">
       <option value="solo">Solo</option>
       <option value="teacher">Teacher</option>
       <option value="student">Student</option>
     </select>
-
     <label class="text-slate-500">Room</label>
     <input id="room" value="CLASS-1" class="px-2 py-1 border rounded w-24 uppercase"/>
-
     <label class="text-slate-500">Name</label>
     <input id="student" placeholder="Name" class="px-2 py-1 border rounded w-24"/>
-
-    <label class="text-slate-500">Level</label>
-    <select id="level" class="px-2 py-1 border rounded">
-      <option value="1">L1</option>
-      <option value="2">L2</option>
-      <option value="3">L3</option>
-    </select>
-
     <label class="text-slate-500">Server</label>
     <input id="serverUrl" placeholder="ws://localhost:8787" class="px-2 py-1 border rounded w-40"/>
-
     <span id="liveDot" class="w-2 h-2 rounded-full bg-slate-300" title="offline"></span>
   </div>
-</header>
+</div>
 
 <nav class="max-w-7xl mx-auto px-4 pb-3 flex gap-2">
   <button data-tab="practice" class="tab-btn px-3 py-1.5 rounded border text-sm font-semibold">🎯 Practice</button>
@@ -78,63 +82,64 @@
   <button data-tab="dashboard" class="tab-btn px-3 py-1.5 rounded border text-sm font-semibold">📊 Dashboard</button>
 </nav>
 
-<main id="tab-practice" class="tab-view max-w-7xl mx-auto px-4 pb-10 grid md:grid-cols-5 gap-4">
+<main id="tab-practice" class="tab-view max-w-7xl mx-auto px-4 pb-10 grid md:grid-cols-7 gap-4">
   <section class="md:col-span-2 space-y-4">
     <div class="bg-white rounded-2xl border p-4 shadow-sm">
       <div class="flex items-center justify-between">
-        <h2 class="font-bold">Session</h2>
-        <span class="text-xs text-slate-500">Q <span id="qIdx">0</span>/<span id="qTotal">10</span></span>
+        <h2 class="font-bold text-sm">Session</h2>
+        <span class="text-xs text-slate-400">Q <span id="qIdx">0</span>/<span id="qTotal">10</span></span>
       </div>
-      <div class="grid grid-cols-3 gap-2 text-sm mt-2">
-        <button data-mode="guided" class="mode-btn px-2 py-2 border rounded font-semibold">Guided</button>
-        <button data-mode="recall" class="mode-btn px-2 py-2 border rounded font-semibold">Recall</button>
-        <button data-mode="mixed" class="mode-btn px-2 py-2 border rounded font-semibold">Mixed</button>
+      <div class="grid grid-cols-3 gap-1 text-xs mt-2">
+        <button data-mode="guided" class="mode-btn px-2 py-1.5 border rounded font-semibold">Guided</button>
+        <button data-mode="recall" class="mode-btn px-2 py-1.5 border rounded font-semibold">Recall</button>
+        <button data-mode="mixed" class="mode-btn px-2 py-1.5 border rounded font-semibold">Mixed</button>
       </div>
       <div class="mt-2 flex items-center gap-2 flex-wrap text-xs">
         <label class="text-slate-500">Qs</label>
-        <input id="sessLen" type="number" min="1" max="50" value="10" class="w-14 border rounded px-2 py-1"/>
+        <input id="sessLen" type="number" min="1" max="50" value="10" class="w-12 border rounded px-2 py-1"/>
         <label class="flex items-center gap-1"><input id="chainMode" type="checkbox"/> Chain</label>
-        <label class="flex items-center gap-1">Steps <input id="chainSteps" type="number" min="2" max="8" value="3" class="w-12 border rounded px-2 py-1"/></label>
-        <button id="startSess" class="ml-auto px-3 py-1.5 rounded bg-indigo-600 text-white font-semibold">Start</button>
+        <input id="chainSteps" type="number" min="2" max="8" value="3" class="w-10 border rounded px-2 py-1" title="Chain steps"/>
+        <button id="startSess" class="ml-auto px-3 py-1 rounded bg-indigo-600 text-white font-semibold">Start</button>
       </div>
-      <p id="modeHelp" class="text-xs text-slate-500 mt-2"></p>
+      <p id="modeHelp" class="text-[11px] text-slate-400 mt-2"></p>
     </div>
 
-    <div class="bg-white rounded-2xl border p-4 shadow-sm">
-      <h2 class="font-bold mb-2">Question</h2>
-      <div class="flex items-baseline gap-2">
-        <div id="question" class="text-3xl md:text-4xl font-black text-indigo-700">—</div>
-        <button id="speakBtn" class="ml-auto px-2 py-1.5 rounded bg-indigo-600 text-white text-sm">🔊</button>
-      </div>
-      <div id="chainPreview" class="text-xs text-slate-500 mt-1"></div>
-      <div class="mt-2 flex items-center gap-2 text-xs">
-        <label>Speed</label>
-        <select id="speed" class="border rounded px-2 py-1">
-          <option value="0.75">0.75x</option><option value="1" selected>1x</option>
-          <option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2x</option>
-        </select>
-        <span class="ml-auto">⏱ <span id="timer">0.0s</span> · ✅ <span id="score">0</span> · ❌ <span id="miss">0</span></span>
-      </div>
-    </div>
-
-    <div class="bg-white rounded-2xl border p-4 shadow-sm">
-      <h2 class="font-bold mb-2">Pick trick <span id="trickMeta" class="text-xs text-slate-400"></span></h2>
+    <div id="trickPanel" class="hidden bg-white rounded-2xl border p-4 shadow-sm">
+      <h2 class="font-bold mb-2 text-sm">Pick trick <span id="trickMeta" class="text-xs text-slate-400"></span></h2>
       <div id="choices" class="grid gap-2"></div>
-      <div class="mt-2 flex gap-2">
-        <button id="showTrickBtn" class="flex-1 px-3 py-2 rounded bg-amber-400 font-semibold text-sm">💡 Show</button>
-        <button id="checkBtn" class="flex-1 px-3 py-2 rounded bg-emerald-500 text-white font-semibold text-sm">Check</button>
-      </div>
       <div id="why" class="mt-2 text-sm italic text-slate-600 min-h-[1.25rem]"></div>
+    </div>
+
+    <div class="text-[11px] text-slate-400 flex gap-3 px-1">
+      <span>⏱ <span id="timer">0.0s</span></span>
+      <span>✅ <span id="score">0</span></span>
+      <span>❌ <span id="miss">0</span></span>
+      <select id="speed" class="ml-auto border rounded px-1 py-0.5 text-[11px] bg-white">
+        <option value="0.75">0.75x</option><option value="1" selected>1x</option>
+        <option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2x</option>
+      </select>
     </div>
   </section>
 
-  <section class="md:col-span-3 space-y-4">
-    <div class="bg-white rounded-2xl border p-4 shadow-sm">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="font-bold">My Abacus <span id="myRoleBadge" class="text-xs text-slate-500"></span></h2>
-        <div class="text-sm">Value: <span id="abacusVal" class="font-black text-indigo-700">0</span> <button id="resetAb" class="ml-2 px-2 py-1 border rounded text-xs">Reset</button></div>
+  <section class="md:col-span-5 space-y-4">
+    <div class="bg-white rounded-2xl border p-5 shadow-sm">
+      <div class="flex items-baseline gap-3">
+        <div id="question" class="text-6xl md:text-7xl font-black text-indigo-700 leading-none">—</div>
+        <button id="speakBtn" class="ml-auto px-3 py-2 rounded-xl bg-indigo-600 text-white">🔊</button>
       </div>
-      <div id="abacus" class="rounded-xl p-4 bg-amber-100 border-4 border-[color:var(--frame)] shadow-inner"></div>
+      <div id="chainPreview" class="text-xs text-slate-500 mt-2"></div>
+    </div>
+
+    <div class="bg-white rounded-2xl border p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bold text-sm text-slate-500">Abacus <span id="myRoleBadge" class="text-xs text-slate-400"></span></h2>
+        <div class="text-sm">Value: <span id="abacusVal" class="font-black text-indigo-700 value-hidden">0</span> <button id="resetAb" class="ml-2 px-2 py-1 border rounded text-xs">Reset</button></div>
+      </div>
+      <div id="abacus" class="rounded-2xl p-6 bg-gradient-to-b from-amber-50 to-amber-100 border-4 border-[color:var(--frame)] shadow-inner"></div>
+      <div class="mt-4 flex gap-3">
+        <button id="showTrickBtn" class="flex-1 px-4 py-3 rounded-xl bg-amber-400 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed" disabled>💡 Show Trick</button>
+        <button id="checkBtn" class="flex-1 px-4 py-3 rounded-xl bg-emerald-500 text-white font-bold text-sm">Check Answer</button>
+      </div>
     </div>
 
     <div id="teacherPanel" class="hidden bg-white rounded-2xl border p-4 shadow-sm">
@@ -252,19 +257,19 @@ function buildAbacus(rootId, mini=false){
   root.innerHTML = '';
   if (mini) root.classList.add('mini');
   const grid = document.createElement('div');
-  grid.className = 'grid gap-2';
+  grid.className = mini ? 'grid gap-2' : 'grid gap-6';
   grid.style.gridTemplateColumns = `repeat(${RODS}, minmax(0,1fr))`;
   root.appendChild(grid);
   for (let r=0;r<RODS;r++){
     const col = document.createElement('div');
     col.className = 'rod-wrap flex flex-col items-center select-none';
-    col.style.height = mini ? '190px' : '300px';
+    col.style.height = mini ? '190px' : '400px';
     col.innerHTML = `
       <div class="rod"></div>
-      <div class="heaven-zone relative w-full flex flex-col items-center justify-start z-10" style="height:${mini?50:80}px" data-rod="${r}"></div>
+      <div class="heaven-zone relative w-full flex flex-col items-center justify-start z-10" style="height:${mini?50:110}px" data-rod="${r}"></div>
       <div class="divider w-full my-1 z-20 rounded"></div>
-      <div class="earth-zone relative w-full flex flex-col items-center justify-end z-10 gap-1" style="height:${mini?120:200}px" data-rod="${r}"></div>
-      <div class="text-[9px] text-slate-500 mt-1">10<sup>${RODS-1-r}</sup></div>
+      <div class="earth-zone relative w-full flex flex-col items-center justify-end z-10 gap-1" style="height:${mini?120:260}px" data-rod="${r}"></div>
+      <div class="text-[10px] text-slate-500 mt-1">10<sup>${RODS-1-r}</sup></div>
     `;
     grid.appendChild(col);
   }
@@ -281,12 +286,12 @@ function ghostCheck(ghost, r, kind, i, beads){
 function makeBead(kind, rod, idx, rootId){
   const b = document.createElement('div');
   b.className = 'bead rounded-full border';
-  b.style.width = rootId.startsWith('peerAb_') ? '28px' : '46px';
-  b.style.height = rootId.startsWith('peerAb_') ? '14px' : '22px';
-  if (kind==='heaven'){ b.style.background='radial-gradient(#374151,#111827)'; b.style.borderColor='#0b1020'; }
-  else { b.style.background='radial-gradient(#fbbf24,#b45309)'; b.style.borderColor='#7c2d12'; }
+  b.style.width = rootId.startsWith('peerAb_') ? '28px' : '60px';
+  b.style.height = rootId.startsWith('peerAb_') ? '14px' : '28px';
+  if (kind==='heaven'){ b.style.background='radial-gradient(circle at 35% 30%, #6b7280, #1f2937 55%, #0b1020)'; b.style.borderColor='#0b1020'; }
+  else { b.style.background='radial-gradient(circle at 35% 30%, #fde68a, #f59e0b 50%, #92400e)'; b.style.borderColor='#7c2d12'; }
 
-  if (rootId === 'abacus' || rootId === 'abacus2') b.addEventListener('click', ()=>onBeadClick(rootId, kind, rod, idx));
+  if (rootId === 'abacus' || rootId === 'abacus2') b.addEventListener('click', ()=>{ b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); onBeadClick(rootId, kind, rod, idx); });
   else if (rootId.startsWith('peerAb_')) {
     const sid = rootId.slice(7);
     b.addEventListener('click', ()=>Sync.onPeerBeadClick(sid, kind, rod, idx));
@@ -303,7 +308,7 @@ function renderBeads(rootId, beads, ghost, valueId){
     hz.innerHTML=''; ez.innerHTML='';
     const {h,e} = beads[r];
     const hb = makeBead('heaven', r, 0, rootId);
-    hb.style.marginTop = h ? (rootId.startsWith('peerAb_') ? '30px' : '55px') : '0px';
+    hb.style.marginTop = h ? (rootId.startsWith('peerAb_') ? '30px' : '75px') : '0px';
     if (ghostCheck(ghost,r,'h',0,beads)) hb.classList.add('ghost');
     hz.appendChild(hb);
     for (let i=0;i<4;i++){
@@ -311,8 +316,8 @@ function renderBeads(rootId, beads, ghost, valueId){
       if (ghostCheck(ghost,r,'e',i,beads)) eb.classList.add('ghost');
       ez.appendChild(eb);
     }
-    if (e===0){ const s=document.createElement('div'); s.style.height='14px'; ez.insertBefore(s, ez.firstChild); }
-    else if (e<4){ const s=document.createElement('div'); s.style.height='14px'; ez.insertBefore(s, ez.children[e]); }
+    if (e===0){ const s=document.createElement('div'); s.style.height = rootId.startsWith('peerAb_') ? '14px' : '18px'; ez.insertBefore(s, ez.firstChild); }
+    else if (e<4){ const s=document.createElement('div'); s.style.height = rootId.startsWith('peerAb_') ? '14px' : '18px'; ez.insertBefore(s, ez.children[e]); }
   }
   const ve = document.getElementById(valueId || (rootId+'Val')); if (ve) ve.textContent = valueOf(beads);
 }
@@ -429,9 +434,12 @@ function showQuestionUi(qText, isChain){
   document.getElementById('question').textContent = qText;
   document.getElementById('trickMeta').textContent = isChain ? '(for last step)' : '';
   document.getElementById('why').textContent='';
-  state.selectedIdx=null; state.locked=false; state.ghost=null; state.start=performance.now();
+  state.selectedIdx=null; state.locked=false; state.ghost=null; state.attempted=false; state.start=performance.now();
   renderChoices();
   renderBeads('abacus', state.beads, null, 'abacusVal');
+  document.getElementById('abacusVal').classList.add('value-hidden');
+  document.getElementById('trickPanel').classList.add('hidden');
+  const st = document.getElementById('showTrickBtn'); if (st) st.disabled = true;
   if (state.sess){ document.getElementById('qIdx').textContent=state.sess.idx+1; document.getElementById('qTotal').textContent=state.sess.len; }
   Sync.broadcastBeads();
 }
@@ -469,10 +477,17 @@ function speakQuestion(){
 function speak(text, rate){ return new Promise(res=>{ const u=new SpeechSynthesisUtterance(text); u.rate=rate; u.onend=res; u.onerror=res; speechSynthesis.cancel(); speechSynthesis.speak(u); }); }
 function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
+function revealAttempt(){
+  state.attempted = true;
+  document.getElementById('abacusVal').classList.remove('value-hidden');
+  document.getElementById('trickPanel').classList.remove('hidden');
+  const st = document.getElementById('showTrickBtn'); if (st) st.disabled = false;
+}
 function checkAnswer(){
   if (!state.target || state.locked) return;
+  revealAttempt();
   const chosen = state.selectedIdx!=null ? state.tricks[state.selectedIdx] : null;
-  const trickOk = chosen && chosen.type===state.correctTrick.type;
+  const trickOk = !chosen || chosen.type===state.correctTrick.type;
   const abOk = valueOf(state.beads)===state.target.after;
   const elapsed=(performance.now()-state.start)/1000;
 
@@ -503,6 +518,7 @@ function checkAnswer(){
 }
 function showTrick(){
   if (!state.target) return;
+  if (!state.attempted) { document.getElementById('why').textContent = 'Try the abacus first, then check.'; return; }
   const u = state.target.after%10;
   state.ghost={ rod:RODS-1, heavenTarget:u>=5?1:0, earthTarget:u>=5?u-5:u };
   renderBeads('abacus', state.beads, state.ghost, 'abacusVal');
@@ -990,6 +1006,7 @@ document.getElementById('exportData').addEventListener('click', ()=>{ const blob
 document.getElementById('clearData').addEventListener('click', ()=>{ if(confirm('Clear all saved sessions?')){ localStorage.removeItem(LS_SESS); renderDashboard(); } });
 document.getElementById('pushAll').addEventListener('click', ()=>{ if(!state.target) newQuestion(); Sync.pushAll(); });
 document.getElementById('resetAll').addEventListener('click', ()=>Sync.resetAll());
+document.getElementById('settingsToggle').addEventListener('click', ()=>document.getElementById('settingsBar').classList.toggle('hidden'));
 document.getElementById('claimClass').addEventListener('click', ()=>Sync.toggleClassClaim());
 document.getElementById('unlockTeacher').addEventListener('click', ()=>Sync.unlockTeacher());
 document.getElementById('studentGrid').addEventListener('click', (e)=>{
