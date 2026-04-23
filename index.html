@@ -237,21 +237,53 @@
         <h2 class="font-bold">Teacher Panel</h2>
         <div class="flex gap-2">
           <button id="claimClass" class="px-2 py-1 border rounded text-xs font-semibold">Claim Class</button>
-          <button id="pushAll" class="px-2 py-1 bg-indigo-600 text-white rounded text-xs font-semibold">Push Question to All</button>
-          <button id="resetAll" class="px-2 py-1 border rounded text-xs font-semibold">Reset All</button>
+          <button id="pushAll" class="hidden px-2 py-1 bg-indigo-600 text-white rounded text-xs font-semibold">Push Question to All</button>
+          <button id="resetAll" class="hidden px-2 py-1 border rounded text-xs font-semibold">Reset All</button>
         </div>
       </div>
-      <div id="studentGrid" class="grid md:grid-cols-2 gap-3"></div>
+      <div class="mb-3 p-2 bg-indigo-50 rounded-lg border border-indigo-200">
+        <div class="flex items-center gap-2">
+          <input id="inviteLink" readonly class="flex-1 px-2 py-1 text-xs border rounded bg-white" value=""/>
+          <button id="genLinkBtn" class="px-2 py-1 bg-indigo-600 text-white rounded text-xs font-semibold">Generate Link</button>
+          <button id="copyLinkBtn" class="px-2 py-1 border rounded text-xs font-semibold">Copy</button>
+        </div>
+        <p class="text-[10px] text-slate-400 mt-1">Students click this link to join your classroom</p>
+      </div>
+      <div id="studentGrid" class="grid gap-2"></div>
       <p id="studentEmpty" class="text-xs text-slate-400">No students connected.</p>
     </div>
 
     <div id="studentPeerPanel" class="hidden glass-panel rounded-3xl border 3xl p-5 shadow-sm">
       <div class="flex items-center justify-between mb-2">
-        <h2 class="font-bold">Teacher Live Mirror</h2>
-        <button id="unlockTeacher" class="px-2 py-1 border rounded text-xs font-semibold">Unlock Teacher</button>
+        <h2 class="font-bold">Connected to Teacher</h2>
+        <div class="flex items-center gap-2">
+          <span id="controlStatus" class="text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-600">View Only</span>
+          <button id="unlockTeacher" class="px-2 py-1 border rounded text-xs font-semibold">Switch Teacher</button>
+        </div>
       </div>
       <div id="teacherMirror" class="rounded-xl p-3 bg-emerald-50 border-2 border-emerald-600/30"></div>
-      <p class="text-xs text-slate-500 mt-2">You receive pushed questions and hints from the teacher.</p>
+      <p class="text-xs text-slate-500 mt-2">Waiting for teacher to share content...</p>
+    </div>
+    <div id="studentSimpleView" class="hidden fixed inset-0 bg-gradient-to-br from-indigo-50 to-purple-50 z-50 flex flex-col">
+      <div class="flex items-center justify-between p-4 bg-white/80 backdrop-blur border-b">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white grid place-items-center font-bold text-sm">ME</div>
+          <span class="font-semibold text-sm">MathEinstein Classroom</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="studentControlBadge" class="hidden text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-semibold">You have control</span>
+          <span id="studentViewBadge" class="text-xs px-2 py-1 rounded bg-slate-200 text-slate-600">View Only</span>
+          <button id="exitStudentView" class="px-3 py-1 rounded bg-rose-500 text-white text-xs font-semibold">Exit</button>
+        </div>
+      </div>
+      <div class="flex-1 flex flex-col items-center justify-center p-4 gap-4">
+        <div id="studentQuestion" class="text-5xl md:text-7xl font-black text-indigo-700">—</div>
+        <div id="studentAbacus" class="w-full max-w-3xl"></div>
+        <div id="studentAudioIndicator" class="hidden flex items-center gap-2 text-indigo-600">
+          <span class="animate-pulse">🔊</span>
+          <span class="text-sm font-medium">Teacher is speaking...</span>
+        </div>
+      </div>
     </div>
   </section>
 </main>
@@ -356,7 +388,9 @@ const state = {
   controlStudent: null,
   attempted: false,
   stuckTimer: null,
-  lastBeadMove: 0
+  lastBeadMove: 0,
+  inviteJoin: false,
+  studentHasControl: false
 };
 function beadClickSound(){
   try {
@@ -498,6 +532,24 @@ function onBeadClick(rootId, kind, rod, idx){
     // Reset stuck timer on any bead movement
     if (state.target && !state.locked) startStuckTimer();
     document.getElementById('stuckHint').classList.add('hidden');
+    
+    // If student has control, send beads back to teacher
+    if (state.studentHasControl) {
+      Sync.sendStudentBeads(cloneBeads(state.beads));
+    }
+    
+    // Also sync to studentSimpleView if active (teacher's own simple view preview)
+    if (state.inviteJoin) {
+      const sw = document.getElementById('studentAbacus');
+      if (sw) renderBeads('studentAbacus', state.beads, null);
+    }
+  }
+  else if (rootId === 'studentAbacus') {
+    // Student view abacus click - check if student has control
+    if (!state.studentHasControl) return;
+    renderBeads('studentAbacus', state.beads, null);
+    // Send beads back to teacher
+    Sync.sendStudentBeads(cloneBeads(state.beads));
   }
   else renderBeads('abacus2', state.dBeads, null, 'abacus2Val');
 }
@@ -654,6 +706,19 @@ function renderChoices(){
 }
 
 async function speakChain(){
+  const rate=+document.getElementById('speed').value;
+  Sync.broadcastAudio(String(state.chain.startVal), true, rate);
+  await speak(String(state.chain.startVal), rate);
+  for (const s of state.chain.seq){ 
+    const text = `${s.op==='+'?'plus':'minus'} ${s.b}`;
+    Sync.broadcastAudio(text, true, rate);
+    await speak(text, rate); 
+    await delay(550); 
+  }
+  Sync.broadcastAudio('', false, rate);
+  return;
+}
+async function speakChainOriginal(){
   if (!state.chain) return;
   const rate=+document.getElementById('speed').value;
   await speak(String(state.chain.startVal), rate);
@@ -663,9 +728,13 @@ function speakQuestion(){
   if (state.chain) return speakChain();
   if (!state.target) return;
   const rate=+document.getElementById('speed').value;
-  speak(`${state.target.a} ${state.target.op==='+'?'plus':'minus'} ${state.target.b}`, rate);
+  const text = `${state.target.a} ${state.target.op==='+'?'plus':'minus'} ${state.target.b}`;
+  Sync.broadcastAudio(text, true, rate);
+  speak(text, rate).then(() => {
+    Sync.broadcastAudio('', false, rate);
+  });
 }
-function speak(text, rate){ return new Promise(res=>{ const u=new SpeechSynthesisUtterance(text); u.rate=rate; u.onend=res; u.onerror=res; speechSynthesis.cancel(); speechSynthesis.speak(u); }); }
+function speak(text, rate){ return new Promise(res=>{ const u=new SpeechSynthesisUtterance(text); u.rate=rate; u.onend=()=>{ res(); }; u.onerror=()=>{ res(); }; speechSynthesis.cancel(); speechSynthesis.speak(u); }); }
 function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
 function revealAttempt(){
@@ -1147,6 +1216,42 @@ const Sync = (()=>{
       p.lastResult = m.ok ? '✅' : '❌'; renderPeerPanels();
       return;
     }
+    
+    // Grant/Revoke control messages
+    if (m.type==='grantControl' && me.role==='student' && m.to===me.id){
+      state.studentHasControl = true;
+      document.getElementById('why').textContent = '✅ Teacher granted you control! You can now move the beads.';
+      renderPeerPanels();
+      return;
+    }
+    if (m.type==='revokeControl' && me.role==='student' && m.to===me.id){
+      state.studentHasControl = false;
+      document.getElementById('why').textContent = 'ℹ Teacher revoked your control. View only mode.';
+      renderPeerPanels();
+      return;
+    }
+    
+    // Bidirectional: Student bead movements sent to teacher
+    if (m.type==='studentBeads' && me.role==='teacher'){
+      const p = peers.get(m.from);
+      if (p && state.controlStudent === m.from) {
+        p.beads = cloneBeads(m.beads || blankBeads());
+        renderPeerPanels();
+      }
+      return;
+    }
+    
+    // Audio sync from teacher to student
+    if (m.type==='audio' && me.role==='student' && m.from===activeTeacherId){
+      const indicator = document.getElementById('studentAudioIndicator');
+      if (m.playing) {
+        indicator.classList.remove('hidden');
+        if (m.text) speak(m.text, m.rate || 1);
+      } else {
+        indicator.classList.add('hidden');
+      }
+      return;
+    }
   }
 
   function upsertPeer(id, role, name){
@@ -1178,9 +1283,33 @@ const Sync = (()=>{
     claimBtn.classList.toggle('text-white', classClaimed);
     const unlockBtn = document.getElementById('unlockTeacher');
     unlockBtn.classList.toggle('hidden', !student);
+    
+    // Update student simple view visibility
+    const simpleView = document.getElementById('studentSimpleView');
+    if (simpleView) {
+      const isSimpleStudent = student && state.inviteJoin;
+      simpleView.classList.toggle('hidden', !isSimpleStudent);
+      if (isSimpleStudent) {
+        document.body.style.overflow = 'hidden';
+      } else {
+        document.body.style.overflow = '';
+      }
+    }
+    
+    // Update control status badge
+    const controlStatus = document.getElementById('controlStatus');
+    if (controlStatus && student) {
+      const hasControl = state.studentHasControl;
+      controlStatus.textContent = hasControl ? 'You have control' : 'View Only';
+      controlStatus.className = 'text-xs px-2 py-0.5 rounded font-semibold ' + (hasControl ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600');
+      document.getElementById('studentControlBadge').classList.toggle('hidden', !hasControl);
+      document.getElementById('studentViewBadge').classList.toggle('hidden', hasControl);
+    }
+    
     grid.innerHTML = '';
 
     students.forEach(s=>{
+      const hasControl = state.controlStudent===s.id;
       const card = document.createElement('div');
       card.className = 'border rounded-xl p-2 bg-slate-50';
       card.innerHTML = `
@@ -1189,10 +1318,10 @@ const Sync = (()=>{
           <div>Value: <b>${valueOf(s.beads)}</b> ${s.lastResult||''}</div>
         </div>
         <div id="peerAb_${s.id}" class="rounded-lg p-2 bg-emerald-50 border border-emerald-700/30"></div>
-        <div class="mt-2 flex gap-1 text-xs">
+        <div class="mt-2 flex gap-1 text-xs flex-wrap">
           <button data-act="push" data-id="${s.id}" class="px-2 py-1 rounded bg-indigo-600 text-white font-semibold">Push</button>
           <button data-act="nudge" data-id="${s.id}" class="px-2 py-1 rounded bg-amber-400 font-semibold">Nudge</button>
-          <button data-act="ctrl" data-id="${s.id}" class="px-2 py-1 rounded border font-semibold">${state.controlStudent===s.id?'Controlling':'Control'}</button>
+          <button data-act="ctrl" data-id="${s.id}" class="px-2 py-1 rounded border font-semibold">${hasControl?'Revoke':'Grant'} Control</button>
           <button data-act="reset" data-id="${s.id}" class="px-2 py-1 rounded border font-semibold">Reset</button>
         </div>
       `;
@@ -1220,15 +1349,25 @@ const Sync = (()=>{
   }
   function applyRemoteQuestion(p){
     state.level = p.level || state.level;
-    document.getElementById('level').value = String(state.level);
     state.target = p.target;
     state.tricks = p.tricks || [];
     state.correctTrick = p.correctTrick;
     state.chain = p.chain || null;
     state.beads = cloneBeads(p.startBeads || blankBeads());
-    showQuestionUi(p.chain ? `${p.chain.seq.length}-step chain = ?` : `${p.target.a} ${p.target.op} ${p.target.b} = ?`, !!p.chain);
+    
+    const questionText = p.chain ? `${p.chain.seq.length}-step chain = ?` : `${p.target.a} ${p.target.op} ${p.target.b} = ?`;
+    
+    // Update normal view
+    document.getElementById('level').value = String(state.level);
+    showQuestionUi(questionText, !!p.chain);
     if (p.chain) document.getElementById('chainPreview').textContent = `Audio chain pushed by teacher`;
     document.getElementById('why').textContent = '📥 New question from teacher';
+    
+    // Update simplified student view if active
+    const simpleQ = document.getElementById('studentQuestion');
+    if (simpleQ) simpleQ.textContent = questionText;
+    
+    renderBeads('studentAbacus', state.beads, null);
     broadcastBeads();
   }
 
@@ -1250,12 +1389,54 @@ const Sync = (()=>{
     renderPeerPanels();
   }
 
+  function grantControl(studentId){
+    if (me.role!=='teacher') return;
+    state.controlStudent = studentId;
+    send({type:'grantControl', to:studentId, allow:true});
+    renderPeerPanels();
+  }
+  function revokeControl(studentId){
+    if (me.role!=='teacher') return;
+    if (state.controlStudent === studentId) {
+      state.controlStudent = null;
+      send({type:'revokeControl', to:studentId, allow:false});
+      renderPeerPanels();
+    }
+  }
+  function generateInviteLink(){
+    const url = new URL(location.href);
+    url.searchParams.set('join', me.room);
+    url.searchParams.set('teacher', me.id);
+    url.searchParams.set('role', 'student');
+    return url.toString();
+  }
+  function copyInviteLink(){
+    const link = generateInviteLink();
+    navigator.clipboard.writeText(link).then(()=>{
+      const btn = document.getElementById('copyLinkBtn');
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(()=>btn.textContent = orig, 1500);
+    });
+  }
+  
   return { connect, role, canControl, broadcastQuestion, broadcastBeads, sendShowTrick, sendResult, onPeerBeadClick,
     sendQuestionTo:(id)=>sendQuestion(id), resetPeer:(id)=>send({type:'resetPeer', to:id}), pushAll:()=>sendQuestion(undefined), resetAll:()=>send({type:'resetPeer'}),
-    setControl:(id)=>{ state.controlStudent = (state.controlStudent===id?null:id); renderPeerPanels(); },
-    forceControl:(id)=>{ state.controlStudent = id; renderPeerPanels(); },
+    setControl:(id)=>{ 
+      if (state.controlStudent === id) {
+        revokeControl(id);
+      } else {
+        grantControl(id);
+      }
+    },
+    forceControl:(id)=>{ grantControl(id); },
     nudgePeer:(id)=>{ sendShowTrick(id); },
-    toggleClassClaim, unlockTeacher
+    toggleClassClaim, unlockTeacher,
+    generateInviteLink, copyInviteLink,
+    sendStudentBeads:(beads)=>send({type:'studentBeads', beads}),
+    broadcastAudio:(text, playing, rate)=>{
+      if (me.role==='teacher') send({type:'audio', text, playing, rate});
+    }
   };
 })();
 
@@ -1385,6 +1566,11 @@ function setDDigitType(t){
 }
 document.querySelectorAll('.d-digit-type-btn').forEach(btn=>btn.addEventListener('click', ()=>setDDigitType(btn.dataset.type)));
 document.getElementById('claimClass').addEventListener('click', ()=>Sync.toggleClassClaim());
+document.getElementById('genLinkBtn').addEventListener('click', ()=>{
+  const link = Sync.generateInviteLink();
+  document.getElementById('inviteLink').value = link;
+});
+document.getElementById('copyLinkBtn').addEventListener('click', ()=>Sync.copyInviteLink());
 document.getElementById('unlockTeacher').addEventListener('click', ()=>Sync.unlockTeacher());
 document.getElementById('studentGrid').addEventListener('click', (e)=>{
   const btn = e.target.closest('button[data-act]'); if (!btn) return;
@@ -1394,6 +1580,16 @@ document.getElementById('studentGrid').addEventListener('click', (e)=>{
   else if (act==='ctrl') Sync.setControl(id);
   else if (act==='reset') Sync.resetPeer(id);
 });
+document.getElementById('exitStudentView').addEventListener('click', ()=>{
+  state.inviteJoin = false;
+  state.studentHasControl = false;
+  document.getElementById('studentSimpleView').classList.add('hidden');
+  document.body.style.overflow = '';
+  // Switch to solo mode
+  document.getElementById('role').value = 'solo';
+  savePrefs();
+  Sync.connect();
+});
 
 // boot
 buildAbacus('abacus');
@@ -1402,10 +1598,45 @@ renderBeads('abacus', state.beads, null, 'abacusVal');
 renderBeads('abacus2', state.dBeads, null, 'abacus2Val');
 loadPrefs();
 Game.load();
-setTab('practice');
-setMode('guided');
-newQuestion();
-Sync.connect();
+
+// Parse invite URL params: ?join=ROOM&teacher=ID&role=student
+(function parseInviteParams(){
+  const params = new URLSearchParams(location.search);
+  const joinRoom = params.get('join');
+  const teacherId = params.get('teacher');
+  const role = params.get('role');
+  
+  if (joinRoom && role === 'student') {
+    // Auto-join as student
+    state.inviteJoin = true;
+    document.getElementById('role').value = 'student';
+    document.getElementById('room').value = joinRoom;
+    savePrefs();
+    
+    // Show simplified student view
+    document.getElementById('studentSimpleView').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    
+    // Build abacus in student view
+    buildAbacus('studentAbacus');
+    renderBeads('studentAbacus', state.beads, null);
+    
+    // Auto-connect after a short delay to ensure everything is ready
+    setTimeout(() => {
+      Sync.connect();
+    }, 500);
+    
+    // Clean URL
+    history.replaceState({}, '', location.pathname + location.hash);
+    return;
+  }
+  
+  setTab('practice');
+  setMode('guided');
+  newQuestion();
+  Sync.connect();
+})();
+
 renderDashboard();
 </script>
 </body>
