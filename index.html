@@ -9,14 +9,15 @@
     :root { --rod:#8b5a2b; --frame:#6b3f1d; }
     body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
     .bead {
-      transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+      transition: transform .13s ease-out, box-shadow .13s ease-out, filter .13s ease-out;
       cursor:pointer; user-select:none;
-      box-shadow: 0 2px 4px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.35), inset 0 -2px 3px rgba(0,0,0,.2);
+      box-shadow: 0 3px 6px rgba(0,0,0,.25), 0 1px 2px rgba(0,0,0,.15), inset 0 2px 3px rgba(255,255,255,.45), inset 0 -2px 4px rgba(0,0,0,.25);
+      will-change: transform;
     }
-    .bead:hover { filter: brightness(1.08); box-shadow: 0 3px 6px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.4), inset 0 -2px 3px rgba(0,0,0,.2); }
-    .bead:active { transform: scale(.94); box-shadow: 0 0 0 3px rgba(99,102,241,.35), inset 0 1px 0 rgba(255,255,255,.3); }
-    .bead.pulse { animation: pulse .25s ease; }
-    @keyframes pulse { 0%{ box-shadow: 0 0 0 0 rgba(99,102,241,.5);} 100%{ box-shadow: 0 0 0 10px rgba(99,102,241,0);} }
+    .bead:hover { filter: brightness(1.06); box-shadow: 0 4px 8px rgba(0,0,0,.3), 0 2px 4px rgba(0,0,0,.2), inset 0 2px 3px rgba(255,255,255,.5), inset 0 -2px 4px rgba(0,0,0,.3); }
+    .bead:active { transform: scale(.96); box-shadow: 0 0 0 4px rgba(99,102,241,.4), inset 0 1px 2px rgba(255,255,255,.35); }
+    .bead.pulse { animation: pulse .15s ease-out; }
+    @keyframes pulse { 0%{ box-shadow: 0 0 0 0 rgba(99,102,241,.55);} 100%{ box-shadow: 0 0 0 8px rgba(99,102,241,0);} }
     .bead.flash { animation: flash .55s ease 2; }
     @keyframes flash { 0%,100%{ box-shadow:0 0 0 0 rgba(250,204,21,0);} 50%{ box-shadow:0 0 0 6px rgba(250,204,21,.65);} }
     .rod-wrap { position:relative; }
@@ -171,7 +172,15 @@
     <div class="bg-white rounded-2xl border p-4 shadow-sm">
       <h2 class="font-bold mb-2">Dictation Drill</h2>
       <div class="grid grid-cols-2 gap-2 text-xs">
-        <label>Steps <input id="dSteps" type="number" min="2" max="10" value="4" class="w-full border rounded px-2 py-1 mt-1"/></label>
+        <label>Questions
+          <select id="dCount" class="w-full border rounded px-2 py-1 mt-1">
+            <option value="10" selected>10</option>
+            <option value="20">20</option>
+            <option value="30">30</option>
+            <option value="40">40</option>
+            <option value="50">50</option>
+          </select>
+        </label>
         <label>Gap(s) <input id="dGap" type="number" min="0.5" max="5" step="0.25" value="1.5" class="w-full border rounded px-2 py-1 mt-1"/></label>
         <label>Speed
           <select id="dSpeed" class="w-full border rounded px-2 py-1 mt-1"><option value="0.75">0.75x</option><option value="1" selected>1x</option><option value="1.5">1.5x</option><option value="2">2x</option></select>
@@ -180,15 +189,15 @@
       </div>
       <div class="mt-3 flex gap-2">
         <button id="dStart" class="flex-1 px-3 py-2 rounded bg-indigo-600 text-white font-semibold text-sm">Start</button>
-        <button id="dReplay" class="px-3 py-2 rounded border font-semibold text-sm">Replay</button>
+        <button id="dNext" class="hidden px-3 py-2 rounded bg-emerald-600 text-white font-semibold text-sm">Next Question</button>
       </div>
     </div>
     <div class="bg-white rounded-2xl border p-4 shadow-sm">
       <div id="dStep" class="text-5xl text-center text-indigo-700 font-black min-h-[4rem]">—</div>
       <div id="dProgress" class="text-xs text-center text-slate-500 mt-1">—</div>
       <div class="mt-2 flex gap-2">
-        <button id="dCheck" class="flex-1 px-3 py-2 rounded bg-emerald-500 text-white font-semibold text-sm">Check</button>
-        <button id="dReveal" class="px-3 py-2 rounded bg-amber-400 font-semibold text-sm">Reveal</button>
+        <button id="dCheck" class="flex-1 px-3 py-2 rounded bg-emerald-500 text-white font-semibold text-sm">Check Answer</button>
+        <button id="dReveal" class="px-3 py-2 rounded bg-amber-400 font-semibold text-sm">Show Answer</button>
       </div>
       <div id="dWhy" class="mt-2 text-sm italic text-slate-600 min-h-[1.25rem]"></div>
     </div>
@@ -288,8 +297,14 @@ function makeBead(kind, rod, idx, rootId){
   b.className = 'bead rounded-full border';
   b.style.width = rootId.startsWith('peerAb_') ? '28px' : '60px';
   b.style.height = rootId.startsWith('peerAb_') ? '14px' : '28px';
-  if (kind==='heaven'){ b.style.background='radial-gradient(circle at 35% 30%, #6b7280, #1f2937 55%, #0b1020)'; b.style.borderColor='#0b1020'; }
-  else { b.style.background='radial-gradient(circle at 35% 30%, #fde68a, #f59e0b 50%, #92400e)'; b.style.borderColor='#7c2d12'; }
+  if (kind==='heaven'){
+    b.style.background='radial-gradient(ellipse at 30% 25%, #9ca3af 0%, #4b5563 35%, #1f2937 70%, #0f172a 100%)';
+    b.style.borderColor='#0b1220';
+  }
+  else {
+    b.style.background='radial-gradient(ellipse at 30% 25%, #fef3c7 0%, #fcd34d 30%, #f59e0b 65%, #b45309 100%)';
+    b.style.borderColor='#78350f';
+  }
 
   if (rootId === 'abacus' || rootId === 'abacus2') b.addEventListener('click', ()=>{ b.classList.remove('pulse'); void b.offsetWidth; b.classList.add('pulse'); onBeadClick(rootId, kind, rod, idx); });
   else if (rootId.startsWith('peerAb_')) {
@@ -326,8 +341,13 @@ function onBeadClick(rootId, kind, rod, idx){
   if (p && state.locked) return;
   const beads = p ? state.beads : state.dBeads;
   const rd = beads[rod];
-  if (kind==='heaven') rd.h = rd.h ? 0 : 1;
-  else rd.e = idx < rd.e ? idx : idx+1;
+  if (kind==='heaven'){ rd.h = rd.h ? 0 : 1; }
+  else {
+    // Earth bead logic: clicking bead at idx sets count to idx+1 (move all beads 0..idx to beam)
+    // Clicking same position again resets all beads down
+    if (rd.e === idx + 1) rd.e = 0;
+    else rd.e = idx + 1;
+  }
   if (p){ state.ghost=null; renderBeads('abacus', state.beads, null, 'abacusVal'); Sync.broadcastBeads(); }
   else renderBeads('abacus2', state.dBeads, null, 'abacus2Val');
 }
@@ -491,6 +511,7 @@ function checkAnswer(){
   const abOk = valueOf(state.beads)===state.target.after;
   const elapsed=(performance.now()-state.start)/1000;
 
+  // Track attempt stats
   if (state.sess){
     const pt = state.sess.perTrick[state.correctTrick.type] ||= {total:0, correct:0};
     pt.total++; if (trickOk && abOk) pt.correct++;
@@ -498,22 +519,35 @@ function checkAnswer(){
   }
 
   if (trickOk && abOk){
+    // CORRECT - show success, update score, but DON'T auto-advance
     if (state.sess){ state.sess.score++; document.getElementById('score').textContent=state.sess.score; }
     document.getElementById('why').innerHTML=`✅ <b>Correct!</b> ${state.correctTrick.why}`;
     flashAll('#abacus .bead');
     Game.correct(state.chain?25:10);
     Sync.sendResult(true);
-    state.locked=true;
-    setTimeout(nextOrEnd,900);
+    state.locked=true; // Lock until Next Question
+    // Change Check Answer button to Next Question
+    const checkBtn = document.getElementById('checkBtn');
+    checkBtn.textContent = 'Next Question →';
+    checkBtn.onclick = () => {
+      // Reset for next question
+      checkBtn.textContent = 'Check Answer';
+      checkBtn.onclick = checkAnswer;
+      setValue(state.beads, 0); // Reset abacus
+      nextOrEnd();
+    };
   } else {
+    // WRONG - don't allow progression
     if (state.sess){ state.sess.miss++; document.getElementById('miss').textContent=state.sess.miss; }
     const reasons=[];
     if (!chosen) reasons.push('pick a trick'); else if (!trickOk) reasons.push(`trick should be <b>${prettyType(state.correctTrick.type)}</b>`);
     if (!abOk) reasons.push(`abacus should show <b>${state.target.after}</b> (you have ${valueOf(state.beads)})`);
-    document.getElementById('why').innerHTML=`❌ ${reasons.join(' · ')}. ${state.correctTrick.why}`;
+    document.getElementById('why').innerHTML=`❌ <b>Try again!</b> ${reasons.join(' · ')}. ${state.correctTrick.why}`;
     shake('#abacus');
     Game.wrong();
     Sync.sendResult(false);
+    // Keep locked=false so user can keep trying
+    state.locked = false;
   }
 }
 function showTrick(){
@@ -527,9 +561,15 @@ function showTrick(){
   setTimeout(()=>{ state.ghost=null; renderBeads('abacus', state.beads, null, 'abacusVal'); },1400);
 }
 function nextOrEnd(){
-  if (!state.sess) return newQuestion();
+  if (!state.sess) {
+    // Free play mode - auto reset and new question
+    setValue(state.beads, 0); // Reset abacus
+    return newQuestion();
+  }
   state.sess.idx++;
   if (state.sess.idx>=state.sess.len) return endSession();
+  // Reset abacus and load next question
+  setValue(state.beads, 0);
   newQuestion();
 }
 
@@ -562,41 +602,111 @@ function endSession(){
 }
 
 function dStart(){
-  const steps=Math.max(2,Math.min(10,+document.getElementById('dSteps').value||4));
-  const gap=Math.max(0.5,Math.min(5,+document.getElementById('dGap').value||1.5));
-  const rate=+document.getElementById('dSpeed').value;
-  const show=document.getElementById('dShow').checked;
-  let total=0; const seq=[];
-  for(let i=0;i<steps;i++){
-    const op=total===0?'+':(Math.random()<.5?'+':'−');
-    const b=state.level===3 ? 1+Math.floor(Math.random()*99) : 1+Math.floor(Math.random()*9);
-    const after=op==='+'?total+b:total-b;
-    if (after<0 || (state.level<=2 && after>9)){ i--; continue; }
-    total=after; seq.push({op,b});
+  const qCount = Math.max(1, Math.min(50, +document.getElementById('dCount').value || 10));
+  const steps = Math.max(2, Math.min(10, 4)); // Steps per dictation remains internal
+  const gap = Math.max(0.5, Math.min(5, +document.getElementById('dGap').value || 1.5));
+  const rate = +document.getElementById('dSpeed').value;
+  const show = document.getElementById('dShow').checked;
+
+  // Generate all questions upfront
+  const questions = [];
+  for (let q = 0; q < qCount; q++) {
+    let total = 0;
+    const seq = [];
+    for (let i = 0; i < steps; i++) {
+      const op = total === 0 ? '+' : (Math.random() < 0.5 ? '+' : '−');
+      const b = state.level === 3 ? 1 + Math.floor(Math.random() * 99) : 1 + Math.floor(Math.random() * 9);
+      const after = op === '+' ? total + b : total - b;
+      if (after < 0 || (state.level <= 2 && after > 9)) { i--; continue; }
+      total = after; seq.push({ op, b });
+    }
+    questions.push({ seq, expected: total });
   }
-  state.d={seq, expected:total, running:true};
-  setValue(state.dBeads,0); renderBeads('abacus2', state.dBeads, null, 'abacus2Val');
-  playDictation(seq,gap,rate,show);
+
+  state.d = { questions, currentQ: 0, totalQ: qCount, seq: questions[0].seq, expected: questions[0].expected, running: true, checked: false, correct: false };
+  setValue(state.dBeads, 0); renderBeads('abacus2', state.dBeads, null, 'abacus2Val');
+  document.getElementById('dNext').classList.add('hidden');
+  document.getElementById('dStart').textContent = 'Restart';
+  updateDProgress();
+  playDictation(state.d.seq, gap, rate, show);
 }
-async function playDictation(seq,gap,rate,show){
-  document.getElementById('dWhy').textContent='';
-  for(let i=0;i<seq.length;i++){
-    const s=seq[i];
-    document.getElementById('dStep').textContent=show?`${s.op==='+'?'+':'−'} ${s.b}`:'🔊';
-    document.getElementById('dProgress').textContent=`${i+1}/${seq.length}`;
-    await speak(`${s.op==='+'?'plus':'minus'} ${s.b}`, rate);
-    await delay(gap*1000);
+function updateDProgress() {
+  document.getElementById('dProgress').textContent = `Question ${state.d.currentQ + 1} / ${state.d.totalQ}`;
+}
+async function playDictation(seq, gap, rate, show) {
+  document.getElementById('dWhy').textContent = '';
+  for (let i = 0; i < seq.length; i++) {
+    const s = seq[i];
+    document.getElementById('dStep').textContent = show ? `${s.op === '+' ? '+' : '−'} ${s.b}` : '🔊';
+    await speak(`${s.op === '+' ? 'plus' : 'minus'} ${s.b}`, rate);
+    await delay(gap * 1000);
   }
-  document.getElementById('dStep').textContent='= ?';
+  document.getElementById('dStep').textContent = '= ?';
+  state.d.running = false;
 }
-function dCheck(){
+function dNextQuestion() {
+  if (!state.d.questions || state.d.currentQ >= state.d.totalQ - 1) {
+    // End of session
+    document.getElementById('dStep').textContent = 'Done!';
+    document.getElementById('dWhy').textContent = `Session complete! Score: ${state.d.questions.filter((q, i) => i <= state.d.currentQ && q.correct).length}/${state.d.totalQ}`;
+    document.getElementById('dNext').classList.add('hidden');
+    document.getElementById('dStart').textContent = 'Start New Session';
+    return;
+  }
+  // Move to next question
+  state.d.currentQ++;
+  const nextQ = state.d.questions[state.d.currentQ];
+  state.d.seq = nextQ.seq;
+  state.d.expected = nextQ.expected;
+  state.d.checked = false;
+  state.d.correct = false;
+  state.d.running = true;
+  // Reset abacus
+  setValue(state.dBeads, 0); renderBeads('abacus2', state.dBeads, null, 'abacus2Val');
+  document.getElementById('dNext').classList.add('hidden');
+  document.getElementById('dWhy').textContent = '';
+  updateDProgress();
+  // Play next dictation
+  const gap = Math.max(0.5, Math.min(5, +document.getElementById('dGap').value || 1.5));
+  const rate = +document.getElementById('dSpeed').value;
+  const show = document.getElementById('dShow').checked;
+  playDictation(state.d.seq, gap, rate, show);
+}
+function dCheck() {
+  if (!state.d.seq.length || !state.d.running === false && state.d.checked) return;
+  const got = valueOf(state.dBeads), ok = got === state.d.expected;
+  state.d.checked = true;
+  state.d.correct = ok;
+  state.d.questions[state.d.currentQ].correct = ok;
+  if (ok) {
+    document.getElementById('dWhy').innerHTML = `✅ <b>Correct!</b> The answer is ${state.d.expected}`;
+    Game.correct(20); flashAll('#abacus2 .bead');
+    // Show Next Question button
+    const nextBtn = document.getElementById('dNext');
+    nextBtn.classList.remove('hidden');
+    nextBtn.textContent = state.d.currentQ < state.d.totalQ - 1 ? 'Next Question →' : 'Finish Session';
+  } else {
+    document.getElementById('dWhy').innerHTML = `❌ <b>Try again!</b> Your answer: ${got}. Keep working on it.`;
+    Game.wrong(); shake('#abacus2');
+    // Do NOT show Next Question - user must get it right
+    document.getElementById('dNext').classList.add('hidden');
+  }
+  // Save individual question result
+  saveSession({ when: Date.now(), student: getName(), type: 'dictation', level: state.level, mode: '-', score: ok ? 1 : 0, total: 1, accuracy: ok ? 100 : 0, avg: 0, perTrick: {} });
+}
+function dReveal() {
   if (!state.d.seq.length) return;
-  const got=valueOf(state.dBeads), ok=got===state.d.expected;
-  document.getElementById('dWhy').innerHTML = ok ? `✅ Correct! ${state.d.expected}` : `❌ Got ${got}, expected ${state.d.expected}`;
-  if (ok){ Game.correct(20); flashAll('#abacus2 .bead'); } else { Game.wrong(); shake('#abacus2'); }
-  saveSession({ when:Date.now(), student:getName(), type:'dictation', level:state.level, mode:'-', score:ok?1:0, total:1, accuracy:ok?100:0, avg:0, perTrick:{} });
+  document.getElementById('dWhy').innerHTML = `Sequence: <b>${state.d.seq.map(s => `${s.op === '+' ? '+' : '−'}${s.b}`).join(' ')}</b> = <b>${state.d.expected}</b>`;
+  // If user reveals answer, mark as checked but NOT correct for progression
+  state.d.checked = true;
+  // Still require correct answer to proceed, or auto-set correct if that's desired behavior
+  // For learning, let's auto-set correct after reveal so they can move on
+  state.d.correct = true;
+  state.d.questions[state.d.currentQ].correct = true;
+  const nextBtn = document.getElementById('dNext');
+  nextBtn.classList.remove('hidden');
+  nextBtn.textContent = state.d.currentQ < state.d.totalQ - 1 ? 'Next Question →' : 'Finish Session';
 }
-function dReveal(){ if (!state.d.seq.length) return; document.getElementById('dWhy').innerHTML=`Sequence: <b>${state.d.seq.map(s=>`${s.op==='+'?'+':'−'}${s.b}`).join(' ')}</b> → <b>${state.d.expected}</b>`; }
 
 function saveSession(rec){
   const all=JSON.parse(localStorage.getItem(LS_SESS)||'[]');
@@ -996,7 +1106,7 @@ document.getElementById('checkBtn').addEventListener('click', checkAnswer);
 document.getElementById('showTrickBtn').addEventListener('click', showTrick);
 document.getElementById('resetAb').addEventListener('click', ()=>{ state.beads=blankBeads(); renderBeads('abacus', state.beads, null, 'abacusVal'); Sync.broadcastBeads(); });
 document.getElementById('dStart').addEventListener('click', dStart);
-document.getElementById('dReplay').addEventListener('click', ()=>{ if (state.d.seq.length) playDictation(state.d.seq, +document.getElementById('dGap').value||1.5, +document.getElementById('dSpeed').value||1, document.getElementById('dShow').checked); });
+document.getElementById('dNext').addEventListener('click', dNextQuestion);
 document.getElementById('dCheck').addEventListener('click', dCheck);
 document.getElementById('dReveal').addEventListener('click', dReveal);
 document.getElementById('resetAb2').addEventListener('click', ()=>{ state.dBeads=blankBeads(); renderBeads('abacus2', state.dBeads, null, 'abacus2Val'); });
