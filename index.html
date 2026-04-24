@@ -82,6 +82,27 @@
     .dot-normal { width: 6px; height: 6px; }
     .dot-large { width: 8px; height: 8px; bottom: -19px; } /* slight bottom adj for larger radius */
     .dot-gold { width: 6px; height: 6px; background-color: #FFD700; box-shadow: 0 0 6px 2px rgba(255,215,0,0.6), inset 0 1px 2px rgba(255,255,255,0.6); }
+    
+    /* Cursor presence */
+    .cursor-layer { position:absolute; inset:0; pointer-events:none; z-index:50; overflow:hidden; }
+    .presence-cursor { position:absolute; transition: all 0.05s linear; pointer-events:none; }
+    .cursor-pointer { width:16px; height:16px; border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 2px 4px rgba(0,0,0,0.3); }
+    .cursor-teacher .cursor-pointer { background:#8B5CF6; border:2px solid white; }
+    .cursor-student .cursor-pointer { background:#10B981; border:2px solid white; }
+    .cursor-label { position:absolute; top:18px; left:50%; transform:translateX(-50%); font-size:10px; font-weight:600; white-space:nowrap; padding:2px 6px; border-radius:4px; background:rgba(0,0,0,0.7); color:white; }
+    
+    /* Lock overlay for view-only mode */
+    .lock-overlay { position:absolute; inset:0; background:rgba(0,0,0,0.1); backdrop-filter:blur(1px); z-index:40; display:flex; align-items:center; justify-content:center; }
+    .lock-icon { font-size:48px; opacity:0.5; }
+    
+    /* Student view banner */
+    .student-banner { background:linear-gradient(to right, #e0e7ff, #ddd6fe); border-bottom:1px solid #c7d2fe; padding:8px 16px; display:flex; align-items:center; justify-content:center; gap:8px; }
+    .mode-locked { background:#FEE2E2 !important; border-color:#FECACA !important; }
+    .mode-unlocked { background:#D1FAE5 !important; border-color:#A7F3D0 !important; }
+    
+    /* Teacher cursor trail */
+    .cursor-trail { position:absolute; width:4px; height:4px; border-radius:50%; background:#8B5CF6; opacity:0.6; pointer-events:none; animation:trail-fade 0.5s ease-out forwards; }
+    @keyframes trail-fade { to { opacity:0; transform:scale(2); } }
   </style>
 </head>
 <body class="min-h-screen text-slate-800">
@@ -104,8 +125,37 @@
       <option value="3">L3</option>
     </select>
     <button id="settingsToggle" class="ml-1 px-2 py-1 border rounded glass-panel" title="Settings">⚙</button>
+    
+    <!-- Live Class Controls (teacher only) -->
+    <div id="liveControls" class="hidden items-center gap-2 ml-2 pl-2 border-l border-slate-300">
+      <span class="flex items-center gap-1 text-xs text-slate-600">
+        <span id="liveDot" class="w-2 h-2 rounded-full bg-slate-300" title="offline"></span>
+        <span id="studentCount">0 students</span>
+      </span>
+      <button id="shareLinkBtn" class="px-2 py-1 rounded bg-indigo-600 text-white text-xs font-semibold">Share</button>
+      <div class="flex rounded border overflow-hidden text-xs">
+        <button id="modeView" class="px-2 py-1 bg-slate-200 font-semibold" data-mode="view">View Only</button>
+        <button id="modeInteract" class="px-2 py-1 bg-white font-semibold" data-mode="interact">Allow Interaction</button>
+        <button id="modeHand" class="px-2 py-1 bg-white font-semibold" data-mode="hand">Hand Control</button>
+      </div>
+      <select id="studentList" class="px-2 py-1 border rounded text-xs hidden">
+        <option value="">Select student...</option>
+      </select>
+      <button id="takeBackBtn" class="hidden px-2 py-1 rounded bg-rose-500 text-white text-xs font-semibold">Take Back</button>
+    </div>
   </div>
 </header>
+
+<!-- Student view banner -->
+<div id="studentBanner" class="hidden student-banner text-sm font-medium text-slate-700">
+  <span id="teacherWatchText">Watching Teacher</span>
+  <span id="studentLockIcon" class="hidden">🔒</span>
+  <span id="studentModeBadge" class="px-2 py-0.5 rounded bg-white/80 text-xs">View Only</span>
+</div>
+
+<div id="teacherOfflineBanner" class="hidden fixed top-0 left-0 right-0 bg-rose-100 border-b border-rose-300 text-rose-700 text-center py-2 text-sm font-medium z-50">
+  Teacher offline - Connection lost
+</div>
 
 <div id="settingsBar" class="hidden max-w-7xl mx-auto px-4 pb-2">
   <div class="flex items-center gap-2 flex-wrap text-xs md:text-sm glass-panel border-white/50 rounded-2xl px-3 py-2">
@@ -215,7 +265,13 @@
         <h2 class="font-bold text-sm text-slate-500">Abacus <span id="myRoleBadge" class="text-xs text-slate-400"></span></h2>
         <div class="text-sm">Value: <span id="abacusVal" class="font-black text-indigo-700 value-hidden">0</span> <button id="resetAb" class="ml-2 px-2 py-1 border rounded text-xs">Reset</button></div>
       </div>
-      <div id="abacus" class="rounded-2xl p-6 bg-gradient-to-b from-amber-50 to-amber-100 border-[10px] border-[color:var(--frame)] shadow-[inset_0_8px_16px_rgba(0,0,0,0.6),_0_10px_25px_rgba(0,0,0,0.15)] rounded-[2rem]"></div>
+      <div class="relative">
+        <div id="abacus" class="rounded-2xl p-6 bg-gradient-to-b from-amber-50 to-amber-100 border-[10px] border-[color:var(--frame)] shadow-[inset_0_8px_16px_rgba(0,0,0,0.6),_0_10px_25px_rgba(0,0,0,0.15)] rounded-[2rem]"></div>
+        <div id="cursorLayer" class="cursor-layer hidden"></div>
+        <div id="lockOverlay" class="lock-overlay hidden">
+          <div class="lock-icon">🔒</div>
+        </div>
+      </div>
       <div id="stuckHint" class="hidden mt-3 px-3 py-2 rounded-lg bg-yellow-100 border border-yellow-300 text-sm text-yellow-900 flex items-center gap-2 flex-wrap">
         <span>Stuck? This uses the <b id="stuckTrick">—</b> trick.</span>
         <button id="stuckWhy" class="ml-auto px-2 py-1 bg-amber-400 rounded text-xs font-semibold">See Why</button>
@@ -532,6 +588,9 @@ function onBeadClick(rootId, kind, rod, idx){
     // Reset stuck timer on any bead movement
     if (state.target && !state.locked) startStuckTimer();
     document.getElementById('stuckHint').classList.add('hidden');
+    
+    // Broadcast individual bead move for collaborative mode
+    Sync.broadcastBeadMove(kind, rod, idx);
     
     // If student has control, send beads back to teacher
     if (state.studentHasControl) {
@@ -1053,6 +1112,18 @@ const Sync = (()=>{
   let transport = 'none';
   let activeTeacherId = null;
   let classClaimed = false;
+  let controlMode = 'view'; // 'view', 'interact', 'hand'
+  let handControlStudent = null;
+  let cursors = new Map(); // userId -> {x, y, name, isTeacher, timestamp}
+  let cursorThrottleTimer = null;
+  
+  // Cursor colors for students
+  const cursorColors = ['#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#EC4899'];
+  function getCursorColor(id) {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    return cursorColors[Math.abs(hash) % cursorColors.length];
+  }
 
   function role(){ return me.role; }
   function canControl(studentId){ return me.role==='teacher' && state.controlStudent===studentId; }
@@ -1063,16 +1134,101 @@ const Sync = (()=>{
   }
   function closeAll(){ if (ws){ try{ws.close();}catch{} ws=null; } if (bc){ try{bc.close();}catch{} bc=null; } transport='none'; }
 
+  function updateLiveControls(){
+    const isTeacher = me.role === 'teacher';
+    const isStudent = me.role === 'student';
+    const isConnected = transport !== 'none';
+    
+    // Show/hide live controls based on role
+    const liveControls = document.getElementById('liveControls');
+    if (liveControls) {
+      liveControls.classList.toggle('hidden', !isTeacher);
+      liveControls.classList.toggle('flex', isTeacher);
+    }
+    
+    // Update student count
+    const studentCount = [...peers.values()].filter(p => p.role === 'student').length;
+    const countEl = document.getElementById('studentCount');
+    if (countEl) countEl.textContent = `${studentCount} student${studentCount !== 1 ? 's' : ''}`;
+    
+    // Update control mode buttons
+    ['view', 'interact', 'hand'].forEach(mode => {
+      const btn = document.getElementById(`mode${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
+      if (btn) {
+        const isActive = controlMode === mode;
+        btn.classList.toggle('bg-slate-200', isActive);
+        btn.classList.toggle('bg-white', !isActive);
+      }
+    });
+    
+    // Show/hide student list dropdown for hand control
+    const studentList = document.getElementById('studentList');
+    const takeBackBtn = document.getElementById('takeBackBtn');
+    if (studentList) {
+      studentList.classList.toggle('hidden', controlMode !== 'hand');
+      if (controlMode === 'hand') {
+        // Populate student list
+        const students = [...peers.values()].filter(p => p.role === 'student');
+        studentList.innerHTML = '<option value="">Select student...</option>' + 
+          students.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+        if (handControlStudent) studentList.value = handControlStudent;
+      }
+    }
+    if (takeBackBtn) {
+      takeBackBtn.classList.toggle('hidden', controlMode !== 'hand' || !handControlStudent);
+    }
+    
+    // Update student banner visibility
+    const studentBanner = document.getElementById('studentBanner');
+    if (studentBanner) {
+      studentBanner.classList.toggle('hidden', !isStudent);
+      if (isStudent && activeTeacherId) {
+        const teacher = peers.get(activeTeacherId);
+        const watchText = document.getElementById('teacherWatchText');
+        if (watchText && teacher) watchText.textContent = `Watching ${escapeHtml(teacher.name)}`;
+        
+        const lockIcon = document.getElementById('studentLockIcon');
+        const modeBadge = document.getElementById('studentModeBadge');
+        if (lockIcon && modeBadge) {
+          const isLocked = controlMode === 'view' && handControlStudent !== me.id;
+          lockIcon.classList.toggle('hidden', !isLocked);
+          modeBadge.textContent = isLocked ? 'View Only' : (handControlStudent === me.id ? 'You have control' : 'Can interact');
+          modeBadge.className = isLocked ? 'px-2 py-0.5 rounded bg-red-100 text-red-700 text-xs' : 'px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 text-xs';
+        }
+      }
+    }
+    
+    // Update lock overlay for students
+    const lockOverlay = document.getElementById('lockOverlay');
+    if (lockOverlay && isStudent) {
+      const isLocked = controlMode === 'view' && handControlStudent !== me.id;
+      lockOverlay.classList.toggle('hidden', !isLocked);
+    }
+    
+    // Show cursor layer based on mode
+    const cursorLayer = document.getElementById('cursorLayer');
+    if (cursorLayer) {
+      const showCursors = isConnected && (isTeacher || controlMode !== 'view');
+      cursorLayer.classList.toggle('hidden', !showCursors);
+    }
+  }
+
   function connect(){
-    closeAll(); peers.clear(); renderPeerPanels();
+    closeAll(); peers.clear(); cursors.clear(); renderPeerPanels();
     me.role = document.getElementById('role').value;
     me.room = (document.getElementById('room').value || 'CLASS-1').toUpperCase();
     me.name = getName();
     activeTeacherId = null;
     classClaimed = false;
+    controlMode = 'view';
+    handControlStudent = null;
     document.getElementById('myRoleBadge').textContent = me.role==='solo' ? '' : `· ${me.role.toUpperCase()} @ ${me.room}`;
+    
+    // Show/hide session controls based on role
+    const sessionPanel = document.querySelector('.glass-panel:has(#startSess)');
+    if (sessionPanel) sessionPanel.classList.toggle('pointer-events-none', me.role === 'student');
 
-    if (me.role==='solo'){ setDot('offline'); return; }
+    if (me.role==='solo'){ setDot('offline'); updateLiveControls(); return; }
     setDot('searching');
     const custom = document.getElementById('serverUrl').value.trim();
     const defaultWs = (location.protocol==='https:'?'wss://':'ws://') + location.host;
@@ -1080,10 +1236,15 @@ const Sync = (()=>{
 
     try {
       ws = new WebSocket(wsUrl);
-      ws.onopen = ()=>{ transport='ws'; setDot('live'); send({type:'join', clientId:me.id, role:me.role, room:me.room, name:me.name}); };
+      ws.onopen = ()=>{ transport='ws'; setDot('live'); updateLiveControls(); send({type:'join', clientId:me.id, role:me.role, room:me.room, name:me.name}); };
       ws.onmessage = ev => onMessage(JSON.parse(ev.data));
       ws.onerror = ()=> fallbackBC();
-      ws.onclose = ()=> { if (transport==='ws') setTimeout(fallbackBC, 150); };
+      ws.onclose = ()=> { 
+        if (transport==='ws') {
+          setTimeout(fallbackBC, 150);
+          document.getElementById('teacherOfflineBanner')?.classList.remove('hidden');
+        }
+      };
     } catch {
       fallbackBC();
     }
@@ -1115,18 +1276,33 @@ const Sync = (()=>{
     if (m.type==='welcome'){
       me.id = m.clientId || me.id;
       (m.peers||[]).forEach(p=>upsertPeer(p.clientId, p.role, p.name));
+      // Apply room state if available (for late joiners)
+      if (m.roomState) {
+        controlMode = m.roomState.controlMode || 'view';
+        handControlStudent = m.roomState.handControlStudent || null;
+        if (me.role === 'student' && m.roomState.teacherState) {
+          applyTeacherState(m.roomState.teacherState);
+        }
+        updateLiveControls();
+      }
       send({type:'hello'});
       broadcastBeads();
+      // Send teacher state if teacher
+      if (me.role === 'teacher') broadcastTeacherState();
       return;
     }
-    if (m.type==='peerJoined'){ upsertPeer(m.from, m.role, m.name); return; }
+    if (m.type==='peerJoined'){ upsertPeer(m.from, m.role, m.name); updateLiveControls(); return; }
     if (m.type==='peerLeft'){
       peers.delete(m.from);
+      cursors.delete(m.from);
+      renderCursors();
       if (activeTeacherId === m.from) {
         activeTeacherId = null;
+        document.getElementById('teacherOfflineBanner')?.classList.remove('hidden');
         if (me.role === 'student') document.getElementById('why').textContent = 'ℹ Active teacher disconnected. Waiting for next teacher command.';
       }
       renderPeerPanels();
+      updateLiveControls();
       return;
     }
 
@@ -1252,6 +1428,151 @@ const Sync = (()=>{
       }
       return;
     }
+    
+    // Handle cursor position updates
+    if (m.type==='cursor_move'){
+      cursors.set(m.from, {x: m.x, y: m.y, name: m.name, isTeacher: m.role==='teacher', timestamp: Date.now()});
+      renderCursors();
+      return;
+    }
+    
+    // Handle teacher state updates
+    if (m.type==='teacher_state' && me.role==='student'){
+      applyTeacherState(m.payload);
+      return;
+    }
+    
+    // Handle control mode changes
+    if (m.type==='control_change' && me.role==='student'){
+      controlMode = m.mode;
+      handControlStudent = m.studentId || null;
+      updateLiveControls();
+      return;
+    }
+    
+    // Handle bead moves from other users (for collaborative mode)
+    if (m.type==='bead_move'){
+      // Only apply if in interact mode or if sender has hand control
+      const isAllowed = controlMode === 'interact' || 
+        (controlMode === 'hand' && handControlStudent === m.from);
+      if (isAllowed && m.from !== me.id) {
+        const {rod, kind, idx} = m;
+        const rd = state.beads[rod];
+        if (kind==='heaven') rd.h = rd.h?0:1; else rd.e = idx < rd.e ? idx : idx+1;
+        renderBeads('abacus', state.beads, null, 'abacusVal');
+        broadcastBeads();
+      }
+      return;
+    }
+  }
+
+  function applyTeacherState(s){
+    if (s.question) {
+      state.target = s.question.target;
+      state.tricks = s.question.tricks || [];
+      state.correctTrick = s.question.correctTrick;
+      state.chain = s.question.chain || null;
+      showQuestionUi(s.question.text, !!s.question.chain);
+    }
+    if (s.beads) {
+      state.beads = cloneBeads(s.beads);
+      renderBeads('abacus', state.beads, null, 'abacusVal');
+    }
+    if (s.settings) {
+      state.level = s.settings.level || state.level;
+      document.getElementById('level').value = String(state.level);
+    }
+    controlMode = s.controlMode || controlMode;
+    handControlStudent = s.handControlStudent || handControlStudent;
+    updateLiveControls();
+  }
+
+  function broadcastTeacherState(){
+    if (me.role !== 'teacher') return;
+    const questionText = state.chain ? `${state.chain.seq.length}-step chain = ?` : 
+      (state.target ? `${state.target.a} ${state.target.op} ${state.target.b} = ?` : null);
+    send({
+      type: 'teacher_state',
+      payload: {
+        question: state.target ? {
+          text: questionText,
+          target: state.target,
+          tricks: state.tricks,
+          correctTrick: state.correctTrick,
+          chain: state.chain
+        } : null,
+        beads: cloneBeads(state.beads),
+        settings: {level: state.level},
+        controlMode,
+        handControlStudent
+      }
+    });
+  }
+
+  function setControlMode(mode, studentId){
+    if (me.role !== 'teacher') return;
+    controlMode = mode;
+    handControlStudent = studentId || null;
+    send({type: 'control_change', mode, studentId});
+    broadcastTeacherState();
+    updateLiveControls();
+  }
+
+  function renderCursors(){
+    const layer = document.getElementById('cursorLayer');
+    if (!layer) return;
+    
+    const now = Date.now();
+    const activeCursors = [];
+    
+    cursors.forEach((cursor, id) => {
+      // Remove stale cursors (older than 5 seconds)
+      if (now - cursor.timestamp > 5000) {
+        cursors.delete(id);
+        return;
+      }
+      if (id === me.id) return; // Don't show own cursor
+      activeCursors.push({id, ...cursor});
+    });
+    
+    // Clear and rebuild cursor elements
+    layer.innerHTML = '';
+    activeCursors.forEach(cursor => {
+      const el = document.createElement('div');
+      el.className = `presence-cursor ${cursor.isTeacher ? 'cursor-teacher' : 'cursor-student'}`;
+      el.style.left = cursor.x + 'px';
+      el.style.top = cursor.y + 'px';
+      
+      const pointer = document.createElement('div');
+      pointer.className = 'cursor-pointer';
+      if (!cursor.isTeacher) {
+        pointer.style.background = getCursorColor(cursor.id);
+      }
+      
+      const label = document.createElement('div');
+      label.className = 'cursor-label';
+      label.textContent = cursor.name || 'Anon';
+      
+      el.appendChild(pointer);
+      el.appendChild(label);
+      layer.appendChild(el);
+    });
+  }
+
+  function trackMouse(x, y){
+    if (me.role === 'solo' || transport === 'none') return;
+    
+    // Throttle to 50ms
+    if (cursorThrottleTimer) return;
+    cursorThrottleTimer = setTimeout(() => {
+      cursorThrottleTimer = null;
+    }, 50);
+    
+    send({type: 'cursor_move', x, y});
+  }
+
+  function broadcastBeadMove(kind, rod, idx){
+    send({type: 'bead_move', kind, rod, idx});
   }
 
   function upsertPeer(id, role, name){
@@ -1436,7 +1757,14 @@ const Sync = (()=>{
     sendStudentBeads:(beads)=>send({type:'studentBeads', beads}),
     broadcastAudio:(text, playing, rate)=>{
       if (me.role==='teacher') send({type:'audio', text, playing, rate});
-    }
+    },
+    setControlMode,
+    trackMouse,
+    broadcastBeadMove,
+    broadcastTeacherState,
+    get controlMode(){ return controlMode; },
+    get handControlStudent(){ return handControlStudent; },
+    get activeTeacherId(){ return activeTeacherId; }
   };
 })();
 
@@ -1502,11 +1830,11 @@ for (const id of ['rodCount', 'hCount', 'eCount']) document.getElementById(id).a
   }
   Sync.broadcastBeads();
 });
-document.getElementById('startSess').addEventListener('click', startSession);
+document.getElementById('startSess').addEventListener('click', ()=>{ startSession(); if (Sync.role() === 'teacher') Sync.broadcastTeacherState(); });
 document.getElementById('speakBtn').addEventListener('click', speakQuestion);
 document.getElementById('checkBtn').addEventListener('click', checkAnswer);
 document.getElementById('showTrickBtn').addEventListener('click', showTrick);
-document.getElementById('resetAb').addEventListener('click', ()=>{ state.beads=blankBeads(); renderBeads('abacus', state.beads, null, 'abacusVal'); Sync.broadcastBeads(); });
+document.getElementById('resetAb').addEventListener('click', ()=>{ state.beads=blankBeads(); renderBeads('abacus', state.beads, null, 'abacusVal'); Sync.broadcastBeads(); if (Sync.role() === 'teacher') Sync.broadcastTeacherState(); });
 document.getElementById('dStart').addEventListener('click', dStart);
 document.getElementById('dNext').addEventListener('click', dNextQuestion);
 document.getElementById('dCheck').addEventListener('click', dCheck);
@@ -1591,6 +1919,46 @@ document.getElementById('exitStudentView').addEventListener('click', ()=>{
   Sync.connect();
 });
 
+// Live Class Controls
+document.getElementById('shareLinkBtn').addEventListener('click', ()=>{
+  const link = `${location.origin}${location.pathname}?join=${encodeURIComponent(document.getElementById('room').value || 'CLASS-1')}&role=student`;
+  navigator.clipboard.writeText(link).then(()=>{
+    const btn = document.getElementById('shareLinkBtn');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(()=>btn.textContent = orig, 1500);
+  });
+});
+
+// Control mode buttons
+['view', 'interact', 'hand'].forEach(mode => {
+  document.getElementById(`mode${mode.charAt(0).toUpperCase() + mode.slice(1)}`).addEventListener('click', ()=>{
+    Sync.setControlMode(mode, null);
+  });
+});
+
+// Student list dropdown for hand control
+document.getElementById('studentList').addEventListener('change', (e)=>{
+  const studentId = e.target.value;
+  if (studentId) {
+    Sync.setControlMode('hand', studentId);
+  }
+});
+
+// Take back control button
+document.getElementById('takeBackBtn').addEventListener('click', ()=>{
+  Sync.setControlMode('view', null);
+});
+
+// Mouse tracking on abacus for cursor presence
+const abacusEl = document.getElementById('abacus');
+if (abacusEl) {
+  abacusEl.addEventListener('mousemove', (e)=>{
+    const rect = abacusEl.getBoundingClientRect();
+    Sync.trackMouse(e.clientX - rect.left, e.clientY - rect.top);
+  });
+}
+
 // boot
 buildAbacus('abacus');
 buildAbacus('abacus2');
@@ -1599,27 +1967,20 @@ renderBeads('abacus2', state.dBeads, null, 'abacus2Val');
 loadPrefs();
 Game.load();
 
-// Parse invite URL params: ?join=ROOM&teacher=ID&role=student
+// Parse invite URL params: ?room=ROOM&role=student (or ?join=ROOM&role=student for backwards compat)
 (function parseInviteParams(){
   const params = new URLSearchParams(location.search);
-  const joinRoom = params.get('join');
-  const teacherId = params.get('teacher');
+  const room = params.get('room') || params.get('join');
   const role = params.get('role');
   
-  if (joinRoom && role === 'student') {
+  if (room && role === 'student') {
     // Auto-join as student
-    state.inviteJoin = true;
     document.getElementById('role').value = 'student';
-    document.getElementById('room').value = joinRoom;
+    document.getElementById('room').value = room.toUpperCase();
     savePrefs();
     
-    // Show simplified student view
-    document.getElementById('studentSimpleView').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-    
-    // Build abacus in student view
-    buildAbacus('studentAbacus');
-    renderBeads('studentAbacus', state.beads, null);
+    // Show student banner
+    document.getElementById('studentBanner').classList.remove('hidden');
     
     // Auto-connect after a short delay to ensure everything is ready
     setTimeout(() => {

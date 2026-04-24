@@ -33,6 +33,20 @@ const wss = new WebSocketServer({ server });
 
 /** rooms: Map<roomCode, Set<ws>> */
 const rooms = new Map();
+/** roomState: Map<roomCode, {teacherState, controlMode, handControlStudent}> */
+const roomState = new Map();
+
+function getRoomState(room) {
+  if (!roomState.has(room)) {
+    roomState.set(room, {
+      teacherState: null,
+      controlMode: 'view', // 'view', 'interact', 'hand'
+      handControlStudent: null,
+      cursors: new Map()
+    });
+  }
+  return roomState.get(room);
+}
 
 function join(room, ws) {
   ws.room = room;
@@ -64,15 +78,47 @@ wss.on('connection', (ws) => {
       ws.userRole  = m.role || 'solo';
       ws.userName  = m.name || 'Anon';
       join((m.room || 'CLASS-1').toUpperCase(), ws);
+      const state = getRoomState(ws.room);
       // tell the joiner who else is in the room
       const peers = [...rooms.get(ws.room)].filter(c => c !== ws).map(c => ({
         clientId: c.clientId, role: c.userRole, name: c.userName
       }));
-      ws.send(JSON.stringify({ type: 'welcome', clientId: ws.clientId, peers }));
+      ws.send(JSON.stringify({ 
+        type: 'welcome', 
+        clientId: ws.clientId, 
+        peers,
+        roomState: state.teacherState ? {
+          teacherState: state.teacherState,
+          controlMode: state.controlMode,
+          handControlStudent: state.handControlStudent
+        } : null
+      }));
       broadcast(ws.room, {
         type: 'peerJoined', from: ws.clientId, role: ws.userRole, name: ws.userName
       }, ws);
       return;
+    }
+    
+    // Handle teacher state updates
+    if (m.type === 'teacher_state' && ws.userRole === 'teacher') {
+      const state = getRoomState(ws.room);
+      state.teacherState = m.payload;
+      state.controlMode = m.payload.controlMode || 'view';
+    }
+    
+    // Handle control mode changes
+    if (m.type === 'control_change' && ws.userRole === 'teacher') {
+      const state = getRoomState(ws.room);
+      state.controlMode = m.mode;
+      state.handControlStudent = m.studentId || null;
+    }
+    
+    // Handle cursor position updates (throttled on client, but store latest)
+    if (m.type === 'cursor_move') {
+      const state = getRoomState(ws.room);
+      state.cursors.set(ws.clientId, {
+        x: m.x, y: m.y, name: ws.userName, isTeacher: ws.userRole === 'teacher', timestamp: Date.now()
+      });
     }
     if (!ws.room) return;
     // stamp & rebroadcast
